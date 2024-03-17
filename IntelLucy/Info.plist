@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIconFile</key>
+	<string></string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>IOKitPersonalities</key>
+	<dict>
+		<key>IntelLucy</key>
+		<dict>
+			<key>CFBundleIdentifier</key>
+			<string>com.insanelymac.${PRODUCT_NAME:rfc1034identifier}</string>
+			<key>Driver Parameters</key>
+			<dict>
+				<key>enableTSO4</key>
+				<true/>
+				<key>enableTSO6</key>
+				<true/>
+				<key>enableWakeOnAddr</key>
+				<false/>
+				<key>forceWoL</key>
+				<false/>
+				<key>rxBufferSize4k</key>
+				<true/>
+				<key>rxCoalescing</key>
+				<true/>
+				<key>µsPollTime10G</key>
+				<integer>55</integer>
+				<key>µsPollTime2G</key>
+				<integer>130</integer>
+				<key>µsPollTime5G</key>
+				<integer>90</integer>
+				<key>µsRxItrTime</key>
+				<integer>0</integer>
+				<key>µsTxItrTime</key>
+				<integer>60</integer>
+			</dict>
+			<key>DriverVersion</key>
+			<string>$MODULE_VERSION</string>
+			<key>IOClass</key>
+			<string>IntelLucy</string>
+			<key>IOPCIPrimaryMatch</key>
+			<string>0x10f78086 0x15148086 0x15178086 0x151C8086 0x10F98086 0x10FB8086 0x152a8086 0x15298086 0x15078086 0x154D8086 0x15578086 0x10FC8086 0x10F88086 0x154F8086 0x15288086 0x154A8086 0x15588086 0x15608086 0x15638086 0x15D18086 0x15AA8086 0x15AB8086 0x15AC8086 0x15AD8086 0x15AE8086 0x15B08086 0x15C28086 0x15C38086 0x15C48086 0x15C68086 0x15C78086 0x15C88086 0x15CE8086 0x15E48086 0x15E58086</string>
+			<key>IOProbeScore</key>
+			<integer>2000</integer>
+			<key>IOProviderClass</key>
+			<string>IOPCIDevice</string>
+		</dict>
+	</dict>
+	<key>OSBundleLibraries</key>
+	<dict>
+		<key>com.apple.iokit.IONetworkingFamily</key>
+		<string>1.8.0</string>
+		<key>com.apple.iokit.IOPCIFamily</key>
+		<string>2.6</string>
+		<key>com.apple.kpi.bsd</key>
+		<string>8.10.0</string>
+		<key>com.apple.kpi.iokit</key>
+		<string>8.10.0</string>
+		<key>com.apple.kpi.libkern</key>
+		<string>8.10.0</string>
+		<key>com.apple.kpi.mach</key>
+		<string>8.10.0</string>
+	</dict>
+	<key>OSBundleRequired</key>
+	<string>Network-Root</string>
+</dict>
+</plist>
