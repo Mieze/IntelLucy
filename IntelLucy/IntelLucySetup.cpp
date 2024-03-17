@@ -117,7 +117,7 @@ void IntelLucy::getParams()
         } else {
             use4kRxBuf = false;
         }
-        IOLog("Use 4k receive buffers %s.\n", use4kRxBuf ? onName : offName);
+        IOLog("4KB receive buffers %s.\n", use4kRxBuf ? onName : offName);
 
         tv = OSDynamicCast(OSNumber, params->getObject(kPollTime10GName));
 
