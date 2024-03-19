@@ -6,7 +6,7 @@ IntelLucy is an open source driver for the Intel X500 family of 10 GBit Ethernet
 - Support for multisegment packets relieving the network stack of unnecessary copy operations when assembling packets for transmission.
 - No-copy receive and transmit. Only small packets are copied on reception because creating a copy is more efficient than allocating a new buffer.
 - TCP segmentation offload with IPv4 and IPv6.
-- Support for TCP/IPv4, UDP/IPv4, TCP/IPv6 and UDP/IPv6 checksum offload.
+- Support for TCP/IPv4, UDP/IPv4, TCP/IPv6, UDP/IPv6 and IPv4 checksum offload.
 - Large Receive Offload: TCP/IPv4 packet streams are identified by the NIC and reassembled to large packets for handover to the network stack eliminating the overhead of packet header processing.
 - Supports jumbo frames up to 9000 bytes (strongly recommended for 10 GBit/s operation).
 - Designed to work with High Sierra and above.
