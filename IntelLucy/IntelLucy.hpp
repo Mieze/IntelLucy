@@ -210,8 +210,6 @@ enum
     kPowerStateCount
 };
 
-#define kIONetworkFeatureLRO    0x200
-
 #define kParamName "Driver Parameters"
 #define kEnableTSO4Name "enableTSO4"
 #define kEnableTSO6Name "enableTSO6"
