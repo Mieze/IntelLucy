@@ -2,7 +2,7 @@
 IntelLucy is an open source driver for the Intel X500 family of 10 GBit Ethernet controllers.
  
 **Key Features of the Driver**
-- Supports Intel X520, X540 and X550 Ethernet controllers.
+- Supports Intel X520, X540 and X550 Ethernet adapters.
 - Support for multisegment packets relieving the network stack of unnecessary copy operations when assembling packets for transmission.
 - No-copy receive and transmit. Only small packets are copied on reception because creating a copy is more efficient than allocating a new buffer.
 - TCP segmentation offload with IPv4 and IPv6.
@@ -21,12 +21,12 @@ IntelLucy is an open source driver for the Intel X500 family of 10 GBit Ethernet
 - The driver It has been successfully tested with Catalina, Monterey, Ventura and Sonoma.
  
 **Known Issues**
-- Try to avoid media with flow control enabled as it might cause repeated connection drops due to transmitter hangs and serous performance issues.
+- Try to avoid media with flow control enabled as it might cause repeated connection drops due to transmitter hangs and serious performance issues.
 - For WoL to work you need 4 things:
   - An adapter which supports WoL (only a few X520 adapters support WoL).
   - A mainboard which supports WoL from an add-in card.
   - WoL must be enabled in the UEFI setup.
-  -Proper ACPI tables for MacOS to support wakeup.
+  - Proper ACPI tables for MacOS to support wakeup.
 
 **Installation**
 - Use OpenCore to inject the driver:
