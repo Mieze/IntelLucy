@@ -184,46 +184,39 @@ int ixgbe_sync_mc_addr_list(struct ixgbe_adapter *adapter)
     return hw->addr_ctrl.mta_in_use;
 }
 
-/**
- * ixgbe_vlan_strip_enable - helper to enable hw vlan stripping
- * @adapter: driver data
- */
-void ixgbe_vlan_strip_enable(struct ixgbe_adapter *adapter)
-{
-    struct ixgbe_hw *hw = &adapter->hw;
-    u32 vlnctrl;
-
-    switch (hw->mac.type) {
-        case ixgbe_mac_82598EB:
-            vlnctrl = IXGBE_READ_REG(hw, IXGBE_VLNCTRL);
-            vlnctrl |= IXGBE_VLNCTRL_VME;
-            IXGBE_WRITE_REG(hw, IXGBE_VLNCTRL, vlnctrl);
-            break;
-            
-        case ixgbe_mac_82599EB:
-        case ixgbe_mac_X540:
-        case ixgbe_mac_X550:
-        case ixgbe_mac_X550EM_x:
-        case ixgbe_mac_x550em_a:
-                vlnctrl = IXGBE_READ_REG(hw, IXGBE_RXDCTL(0));
-                vlnctrl |= IXGBE_RXDCTL_VME;
-                IXGBE_WRITE_REG(hw, IXGBE_RXDCTL(0), vlnctrl);
-            break;
-            
-        default:
-            break;
-    }
-}
-
 void ixgbe_vlan_promisc_enable(struct ixgbe_adapter *adapter)
 {
     struct ixgbe_hw *hw = &adapter->hw;
+    u32 reg_offset;
     u32 vlnctrl;
+    u32 vlvfb;
+    int i;
 
     vlnctrl = IXGBE_READ_REG(hw, IXGBE_VLNCTRL);
     vlnctrl &= ~IXGBE_VLNCTRL_VFE;
     IXGBE_WRITE_REG(hw, IXGBE_VLNCTRL, vlnctrl);
     
+    /*
+     * If we are already in VLAN promisc or have an 82598,
+     * there is nothing more to do now.
+     */
+    if ((hw->mac.type != ixgbe_mac_82598EB) &&
+        !(adapter->flags2 & IXGBE_FLAG2_VLAN_PROMISC)) {
+        adapter->flags2 |= IXGBE_FLAG2_VLAN_PROMISC;
+
+        /* Add PF to all active pools */
+        for (i = IXGBE_VLVF_ENTRIES; --i;) {
+            reg_offset = IXGBE_VLVFB(i * 2);
+            vlvfb = IXGBE_READ_REG(hw, reg_offset);
+
+            vlvfb |= BIT(0);
+            IXGBE_WRITE_REG(hw, reg_offset, vlvfb);
+        }
+
+        /* Set all bits in the VLAN filter table array */
+        for (i = hw->mac.vft_size; i--;)
+            IXGBE_WRITE_REG(hw, IXGBE_VFTA(i), ~0U);
+    }
     return;
 }
 

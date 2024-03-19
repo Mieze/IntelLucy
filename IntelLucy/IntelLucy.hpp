@@ -210,8 +210,6 @@ enum
     kPowerStateCount
 };
 
-#define kIONetworkFeatureLRO    0x200
-
 #define kParamName "Driver Parameters"
 #define kEnableTSO4Name "enableTSO4"
 #define kEnableTSO6Name "enableTSO6"
@@ -463,7 +461,8 @@ private:
     void ixgbeSetRxMode();
     void ixgbeDisableRx(struct ixgbe_adapter *adapter);
     void ixgbeSetRxBufferLen(struct ixgbe_adapter *adapter);
-
+    void ixgbeVlanStripEnable(struct ixgbe_adapter *adapter);
+    
     void ixgbeSetNumQueues(struct ixgbe_adapter *adapter);
     void ixgbeConfigureTx(struct ixgbe_adapter *adapter);
     

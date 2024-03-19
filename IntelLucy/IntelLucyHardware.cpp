@@ -1543,11 +1543,11 @@ void IntelLucy::ixgbeReset(struct ixgbe_adapter *adapter)
     clear_bit(__IXGBE_IN_SFP_INIT, &adapter->state);
 
     /* flush entries out of MAC table */
-    //ixgbe_flush_sw_mac_table(adapter);
-    //ixgbe_sync_mac_table(adapter);
+    ixgbe_flush_sw_mac_table(adapter);
+    ixgbe_sync_mac_table(adapter);
 
     /* do not flush user set addresses */
-    //ixgbe_mac_set_default_filter(adapter);
+    ixgbe_mac_set_default_filter(adapter);
 
     /* update SAN MAC vmdq pool selection */
 /*

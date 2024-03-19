@@ -256,7 +256,7 @@ void IntelLucy::ixgbeConfigureRx(struct ixgbe_adapter *adapter)
 /**
  * ixgbeSetRxMode - Unicast, Multicast and Promiscuous mode set
  *
- * The set_rx_method entry point is called whenever the unicast/multicast
+ * The set_rx_mode entry point is called whenever the unicast/multicast
  * address list or the network interface flags are updated.  This routine is
  * responsible for configuring the hardware for proper unicast, multicast and
  * promiscuous mode.
@@ -313,7 +313,7 @@ void IntelLucy::ixgbeSetRxMode()
 
     IXGBE_WRITE_REG(hw, IXGBE_FCTRL, fctrl);
 
-    ixgbe_vlan_strip_enable(adapter);
+    ixgbeVlanStripEnable(adapter);
     ixgbe_vlan_promisc_enable(adapter);
 }
 
@@ -494,6 +494,44 @@ void IntelLucy::ixgbeSetRxBufferLen(struct ixgbe_adapter *adapter)
         
         if (adapter->flags2 & IXGBE_FLAG2_RSC_ENABLED)
             set_ring_rsc_enabled(ring);
+    }
+}
+
+/**
+ * ixgbeVlanStripEnable - helper to enable hw vlan stripping
+ * @adapter: driver data
+ */
+void IntelLucy::ixgbeVlanStripEnable(struct ixgbe_adapter *adapter)
+{
+    struct ixgbe_hw *hw = &adapter->hw;
+    struct ixgbeRxRing *ring;
+    UInt32 vlnctrl;
+    int i, j;
+
+    switch (hw->mac.type) {
+        case ixgbe_mac_82598EB:
+            vlnctrl = IXGBE_READ_REG(hw, IXGBE_VLNCTRL);
+            vlnctrl |= IXGBE_VLNCTRL_VME;
+            IXGBE_WRITE_REG(hw, IXGBE_VLNCTRL, vlnctrl);
+            break;
+            
+        case ixgbe_mac_82599EB:
+        case ixgbe_mac_X540:
+        case ixgbe_mac_X550:
+        case ixgbe_mac_X550EM_x:
+        case ixgbe_mac_x550em_a:
+            for (i = 0; i < adapter->num_rx_queues; i++) {
+                ring = &rxRing[i];
+                j = ring->regIndex;
+                
+                vlnctrl = IXGBE_READ_REG(hw, IXGBE_RXDCTL(j));
+                vlnctrl |= IXGBE_RXDCTL_VME;
+                IXGBE_WRITE_REG(hw, IXGBE_RXDCTL(j), vlnctrl);
+            }
+            break;
+            
+        default:
+            break;
     }
 }
 

@@ -87,8 +87,6 @@ int ixgbe_write_mc_addr_list(struct ixgbe_adapter *adapter,
                              u8 *addrs, UInt32 count);
 
 void ixgbe_vlan_promisc_enable(struct ixgbe_adapter *adapter);
-void ixgbe_vlan_strip_enable(struct ixgbe_adapter *adapter);
-void ixgbe_vlan_promisc_enable(struct ixgbe_adapter *adapter);
 
 /* Rx support functions*/
 void ixgbe_setup_psrtype(struct ixgbe_adapter *adapter);
