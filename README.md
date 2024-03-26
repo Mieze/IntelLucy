@@ -2,7 +2,7 @@
 IntelLucy is an open source driver for the Intel X500 family of 10 GBit Ethernet controllers.
  
 **Key Features of the Driver**
-- Supports Intel X520, X540 and X550 Ethernet adapters.
+- Supports Intel X520, X540, X550 and 82598 Ethernet adapters.
 - Support for multisegment packets relieving the network stack of unnecessary copy operations when assembling packets for transmission.
 - No-copy receive and transmit. Only small packets are copied on reception because creating a copy is more efficient than allocating a new buffer.
 - TCP segmentation offload with IPv4 and IPv6.
@@ -13,7 +13,6 @@ IntelLucy is an open source driver for the Intel X500 family of 10 GBit Ethernet
 - Supports Wake on LAN (untested).
 - Supports VLAN (untested).
 - Support for Energy Efficient Ethernet (EEE) is planned for future releaes.
-- Support for the Intel 82598 controller is also work in progress.
 - No need for hardware modifications anymore (used to be required for Smalltree8259x.kext). 
 - The driver is published under GPLv2.
  
