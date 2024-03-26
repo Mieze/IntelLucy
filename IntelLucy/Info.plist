@@ -29,13 +29,13 @@
 				<key>µsPollTime10G</key>
 				<integer>55</integer>
 				<key>µsPollTime2G</key>
-				<integer>130</integer>
+				<integer>110</integer>
 				<key>µsPollTime5G</key>
-				<integer>90</integer>
+				<integer>85</integer>
 				<key>µsRxItrTime</key>
 				<integer>0</integer>
 				<key>µsTxItrTime</key>
-				<integer>60</integer>
+				<integer>70</integer>
 			</dict>
 			<key>DriverVersion</key>
 			<string>$MODULE_VERSION</string>

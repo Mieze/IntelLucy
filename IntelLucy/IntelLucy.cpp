@@ -597,6 +597,9 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
                     cmdTypeLen = (IXGBE_TXD_CMD_DEXT | IXGBE_ADVTXD_DTYP_DATA |
                                   IXGBE_ADVTXD_DCMD_TSE | IXGBE_ADVTXD_DCMD_IFCS);
                 } else {
+                    /*
+                     * There is no need for a TSO6 operation as the packet can be sent in one frame.
+                     */
                     offloadFlags = kChecksumTCPIPv6;
                     
                     vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv6HdrLen);
@@ -605,7 +608,6 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
 
                     cmdTypeLen = (IXGBE_TXD_CMD_DEXT | IXGBE_ADVTXD_DTYP_DATA | IXGBE_ADVTXD_DCMD_IFCS);
                 }
-                //DebugLog("Ethernet paylen: %u mss: %u iplen: %u tcplen: %u\n", paylen, mss, iplen, tcplen);
             }
             wmb();
         } else {
@@ -1169,6 +1171,7 @@ void IntelLucy::txCleanRing(struct ixgbeTxRing *ring)
     struct ixgbeTxBufferInfo *bufInfo;
     SInt32 bytes = 0;
     SInt32 packets = 0;
+    UInt32 batch = 0;
     UInt32 descStatus;
     SInt32 cleaned;
     
@@ -1183,12 +1186,13 @@ void IntelLucy::txCleanRing(struct ixgbeTxRing *ring)
                 goto done;
             
             /* First free the attached mbuf and clean up the buffer info. */
-            freePacket(bufInfo->mbuf);
+            freePacket(bufInfo->mbuf, kDelayFree);
             bufInfo->mbuf = NULL;
             
             cleaned = bufInfo->numDescs;
             bytes += bufInfo->packetBytes;
             packets += cleaned;
+            batch += cleaned;
             bufInfo->numDescs = 0;
             bufInfo->packetBytes = 0;
             ring->txHangSuspected = 0;
@@ -1196,6 +1200,11 @@ void IntelLucy::txCleanRing(struct ixgbeTxRing *ring)
             /* Finally update the number of free descriptors. */
             OSAddAtomic(cleaned, &ring->txNumFreeDesc);
             OSAddAtomic64(cleaned, &ring->txDescDone);
+            
+            if (batch > 16) {
+                releaseFreePackets();
+                batch = 0;
+            }
         }
         /* Increment txDirtyIndex. */
         ++ring->txDirtyIndex &= kTxDescMask;
@@ -1203,6 +1212,8 @@ void IntelLucy::txCleanRing(struct ixgbeTxRing *ring)
     //DebugLog("txInterrupt txDirtyIndex=%u", ring->txDirtyIndex);
     
 done:
+    releaseFreePackets();
+    
     if (txRing[0].txNumFreeDesc > kTxQueueWakeTreshhold)
         netif->signalOutputThread();
     
@@ -1411,7 +1422,8 @@ void IntelLucy::interruptOccurred(OSObject *client, IOInterruptEventSource *src,
     
     if (!test_bit(__POLL_MODE, &stateFlags) &&
         !test_and_set_bit(__POLLING, &stateFlags)) {
-        
+        qmask = rxActiveQueueMask | txActiveQueueMask;
+
         if (eicr & rxActiveQueueMask) {
             packets = rxCleanRing(netif, &rxRing[0], kNumRxDesc, NULL, NULL);
             
@@ -1424,7 +1436,6 @@ void IntelLucy::interruptOccurred(OSObject *client, IOInterruptEventSource *src,
             txCleanRing(&txRing[0]);
             etherStats->dot3TxExtraEntry.interrupts++;
         }
-        qmask = rxActiveQueueMask | txActiveQueueMask;
         clear_bit(__POLLING, &stateFlags);
     }
     
@@ -1624,14 +1635,14 @@ static inline void prepareTSO4(mbuf_t m, UInt32 *ipLength, UInt32 *tcpLength, UI
     
     tcp = (struct tcp_hdr_be *)(p + il);
     tl = ((tcp->dat_off & 0xf0) >> 2);
-    max = ETH_DATA_LEN - (il + tl);
+    max = 1600 - (il + tl);
 
     /* Fill in the pseudo header checksum for TSOv4. */
     tcp->csum = htons((UInt16)csum32);
 
     *ipLength = il;
     *tcpLength = tl;
-    
+
     if (*mss > max)
         *mss = max;
 }
