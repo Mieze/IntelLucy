@@ -13,11 +13,13 @@ IntelLucy is an open source driver for the Intel X500 family of 10 GBit Ethernet
 - Supports Wake on LAN (untested).
 - Supports VLAN (untested).
 - Support for Energy Efficient Ethernet (EEE) is planned for future releaes.
-- No need for hardware modifications anymore (used to be required for Smalltree8259x.kext). 
+- Compatible with AppleVTD but also works without.
+- No need for hardware modifications anymore (used to be required for SmalltreeIntel8259x.kext). 
 - The driver is published under GPLv2.
  
 **Current Status**
-- The driver It has been successfully tested with Catalina, Monterey, Ventura and Sonoma.
+- The driver has been successfully tested with Catalina, Monterey, Ventura and Sonoma.
+- Preformance is better than com.apple.DriverKit-AppleEthernetIXGBE.
  
 **Known Issues**
 - Try to avoid media with flow control enabled as it might cause repeated connection drops due to transmitter hangs and serious performance issues.
