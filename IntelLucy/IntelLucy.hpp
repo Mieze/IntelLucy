@@ -469,7 +469,8 @@ private:
     void ixgbeConfigureRx(struct ixgbe_adapter *adapter);
     void ixgbeConfigure(struct ixgbe_adapter *adapter);
     void ixgbeUpComplete(struct ixgbe_adapter *adapter);
-    
+    void ixgbeConfigRelaxOrder(struct ixgbe_adapter *adapter);
+
     void ixgbeClearTxRings(struct ixgbe_adapter *adapter);
     void ixgbeClearRxRings(struct ixgbe_adapter *adapter);
     void ixgbeDisableTx(struct ixgbe_adapter *adapter);

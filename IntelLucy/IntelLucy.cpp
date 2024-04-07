@@ -1249,7 +1249,7 @@ UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing 
         
         pktType = OSSwapLittleToHostInt32(desc->wb.lower.lo_dword.data);
         pktSize = OSSwapLittleToHostInt16(desc->wb.upper.length);
-        vlanTag = (status & IXGBE_RXD_STAT_VP) ? (OSSwapBigToHostInt16(desc->wb.upper.vlan)) : 0;
+        vlanTag = (status & IXGBE_RXD_STAT_VP) ? (desc->wb.upper.vlan) : 0;
         rscCnt = (pktType & IXGBE_RXDADV_RSCCNT_MASK) >> IXGBE_RXDADV_RSCCNT_SHIFT;
 
         pktBytes += pktSize;
@@ -1318,7 +1318,7 @@ UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing 
 
             /* Also get the VLAN tag if there is any. */
             if (vlanTag)
-                setVlanTag(newPkt, vlanTag);
+                setVlanTag(newPkt, (UInt32)vlanTag);
 
             interface->enqueueInputPacket(newPkt, pollQueue);
         } else {
@@ -1635,7 +1635,7 @@ static inline void prepareTSO4(mbuf_t m, UInt32 *ipLength, UInt32 *tcpLength, UI
     
     tcp = (struct tcp_hdr_be *)(p + il);
     tl = ((tcp->dat_off & 0xf0) >> 2);
-    max = 1600 - (il + tl);
+    max = ETH_DATA_LEN - (il + tl);
 
     /* Fill in the pseudo header checksum for TSOv4. */
     tcp->csum = htons((UInt16)csum32);

@@ -689,6 +689,7 @@ bool IntelLucy::ixgbeSwInit(struct ixgbe_adapter *adapter, const struct ixgbe_in
     }
     adapter->flags2 |= IXGBE_FLAG2_RSC_CAPABLE;
     adapter->max_q_vectors = MAX_Q_VECTORS_82599;
+    adapter->flags |= IXGBE_FLAG_DCA_CAPABLE;
     adapter->atr_sample_rate = 20;
     adapter->fdir_pballoc = IXGBE_FDIR_PBALLOC_NONE;
     
@@ -745,6 +746,8 @@ bool IntelLucy::ixgbeSwInit(struct ixgbe_adapter *adapter, const struct ixgbe_in
         case ixgbe_mac_X550:
             if (hw->mac.type == ixgbe_mac_X550)
                 adapter->flags2 |= IXGBE_FLAG2_TEMP_SENSOR_CAPABLE;
+            
+            adapter->flags &= ~IXGBE_FLAG_DCA_CAPABLE;
             break;
             
         default:
@@ -1565,6 +1568,38 @@ void IntelLucy::ixgbeReset(struct ixgbe_adapter *adapter)
     }
 }
 
+void IntelLucy::ixgbeConfigRelaxOrder(struct ixgbe_adapter *adapter)
+{
+    struct ixgbe_hw *hw = &adapter->hw;
+    UInt32 ctrl;
+    int i;
+    UInt16 offset;
+    UInt8 regIdx;
+
+    for (i = 0; i < adapter->num_tx_queues; i++) {
+        regIdx  = txRing[i].regIndex;
+        offset = (hw->mac.type == ixgbe_mac_82598EB) ? IXGBE_DCA_TXCTRL(regIdx) :
+                IXGBE_DCA_TXCTRL_82599(regIdx);
+        
+        ctrl = IXGBE_READ_REG(hw, offset);
+        ctrl &= ~IXGBE_DCA_TXCTRL_DESC_WRO_EN;
+        ctrl |= IXGBE_DCA_TXCTRL_DATA_RRO_EN;
+        IXGBE_WRITE_REG(hw, offset, ctrl);
+
+        DebugLog("IXGBE_DCA_TXCTRL(%u): 0x%lx\n", regIdx, (unsigned long)ctrl);
+    }
+    for (i = 0; i < adapter->num_rx_queues; i++) {
+        regIdx  = rxRing[i].regIndex;
+        offset = IXGBE_DCA_RXCTRL(regIdx);
+        
+        ctrl = IXGBE_READ_REG(hw, offset);
+        ctrl |= IXGBE_DCA_RXCTRL_DESC_RRO_EN;
+        IXGBE_WRITE_REG(hw, offset, ctrl);
+        
+        DebugLog("IXGBE_DCA_RXCTRL(%u): 0x%lx\n", regIdx, (unsigned long)ctrl);
+    }
+}
+
 void IntelLucy::ixgbeConfigure(struct ixgbe_adapter *adapter)
 {
     struct ixgbe_hw *hw = &adapter->hw;
@@ -1601,11 +1636,10 @@ void IntelLucy::ixgbeConfigure(struct ixgbe_adapter *adapter)
         default:
             break;
     }
-    /* configure DCA */
-/*
+    /* Configure relaxed ordering. */
     if (adapter->flags & IXGBE_FLAG_DCA_CAPABLE)
-        ixgbe_setup_dca(adapter);
-*/
+        ixgbeConfigRelaxOrder(adapter);
+
     ixgbeConfigureTx(adapter);
     ixgbeConfigureRx(adapter);
     //ixgbe_configure_dfwd(adapter);

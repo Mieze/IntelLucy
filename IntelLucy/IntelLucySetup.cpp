@@ -762,9 +762,10 @@ void IntelLucy::freeDMADescriptors()
     }
     RELEASE(rxMbufCursor);
     
-    if (txRing[0].txBufArray) {
-        IOFree(txRing[0].txBufArray, kTxBufMemSize);
+    if (txBufArrayMem) {
+        IOFree(txBufArrayMem, kTxBufMemSize);
         txRing[0].txBufArray = NULL;
+        txBufArrayMem = NULL;
     }
     if (rxBufArrayMem) {
         for (j = 0; j < kNumRxRings; j++) {

@@ -871,7 +871,7 @@ static int ixgbe_alloc_q_vector(struct ixgbe_adapter *adapter,
 	q_vector->numa_node = node;
 
 #ifdef CONFIG_IXGBE_DCA
-    /* initialize CPU for DCA *//Users/Shared/Projekte/IntelLucyEthernet/IntelLucyEthernet/ixgbe_lib.c:               IXGBE_ITR_ADAPTIVE_LATENCY;
+    /* initialize CPU for DCA */
 	q_vector->cpu = -1;
 
 #endif
