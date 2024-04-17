@@ -19,11 +19,14 @@ IntelLucy is an open source driver for the Intel X500 family of 10 GBit Ethernet
  
 **Current Status**
 - The driver has been successfully tested with Catalina, Monterey, Ventura and Sonoma.
-- Preformance is better than com.apple.DriverKit-AppleEthernetIXGBE.
+- Performance is better than com.apple.DriverKit-AppleEthernetIXGBE.
+- X520 adapters have been successfully tested with passive DAC cables, 10GBase-SR and 1000Base-T SFP+ modules. SFP+ modules with 10GBase-T ports are unsupported by X520 adapters as they exceed the power limits of the SFP+ slots.
+- Support for X540 adapters have has been improved and tested in version 1.0.3. Both ports are working simultaneously.
 - VLAN support has been fixed and tested in version 1.0.0.
 - Wake on LAN is still untested as I don't have an adapter which supports WoL.
  
 **Known Issues**
+- Manual media selection doesn't work. The link is always established with the highest data rate both link partners support, i.e. 10 Gbit/s of both endpoints support it, 1 Gbit/s if the link partner is a Gigabit device, etc. As DAC cables and fibre optics usually are fixed-speed devices, only RJ-45 ports are affected of this limitation. As this is the specified behavior of the underlying Linux driver, a reqrite of the low level code will be required and is planned ASAP.   
 - Try to avoid media with flow control enabled as it might cause repeated connection drops due to transmitter hangs and serious performance issues.
 - For WoL to work you need 4 things:
   - An adapter which supports WoL (only a few X520 adapters support it).
