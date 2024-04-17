@@ -14,13 +14,13 @@
 			<string>com.insanelymac.${PRODUCT_NAME:rfc1034identifier}</string>
 			<key>Driver Parameters</key>
 			<dict>
+				<key>enableASPM</key>
+				<true/>
 				<key>enableTSO4</key>
 				<true/>
 				<key>enableTSO6</key>
 				<true/>
 				<key>enableWakeOnAddr</key>
-				<false/>
-				<key>forceWoL</key>
 				<false/>
 				<key>rxBufferSize4k</key>
 				<true/>

@@ -13,7 +13,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * Driver for Intel PCIe 10GB ethernet controllers.
+ * Driver for Intel PCIe 10Gbit ethernet controllers.
  *
  * This driver is based on Intel's ixgbe driver for Linux.
  */

@@ -5528,6 +5528,8 @@ void ixgbe_sfp_link_config(struct ixgbe_adapter *adapter)
 	adapter->sfp_poll_time = 0;
 }
 
+#if DISABLED_CODE
+
 /**
  * ixgbe_non_sfp_link_config - set up non-SFP+ link
  * @hw: pointer to private hardware struct
@@ -5550,14 +5552,12 @@ int ixgbe_non_sfp_link_config(struct ixgbe_hw *hw)
 	if (!speed && hw->mac.ops.get_link_capabilities) {
 		ret = hw->mac.ops.get_link_capabilities(hw, &speed,
 							&autoneg);
-#if DISABLED_CODE
 		/* remove NBASE-T speeds from default autonegotiation
 		 * to accommodate broken network switches in the field
 		 * which cannot cope with advertised NBASE-T speeds
 		 */
 		speed &= ~(IXGBE_LINK_SPEED_5GB_FULL |
 			   IXGBE_LINK_SPEED_2_5GB_FULL);
-#endif /* DISABLED_CODE */
 	}
 
 	if (ret)
@@ -5568,8 +5568,6 @@ int ixgbe_non_sfp_link_config(struct ixgbe_hw *hw)
 
 	return ret;
 }
-
-#if DISABLED_CODE
 
 /**
  * ixgbe_clear_vf_stats_counters - Clear out VF stats after reset

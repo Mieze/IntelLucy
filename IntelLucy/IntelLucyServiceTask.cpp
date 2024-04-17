@@ -13,7 +13,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * Driver for Intel PCIe 10GB ethernet controllers.
+ * Driver for Intel PCIe 10Gbit ethernet controllers.
  *
  * This driver is based on Intel's ixgbe driver for Linux.
  */
@@ -575,6 +575,9 @@ void IntelLucy::ixgbeWatchdogLinkIsDown(struct ixgbe_adapter *adapter)
     ixgbeClearRxRings(adapter);
     
     IOLog("Link down on en%u\n", netif->getUnitNumber());
+    
+    DebugLog("Initiating reset to clear Tx work after link loss.\n");
+    set_bit(__IXGBE_RESET_REQUESTED, &adapter->state);
 }
 
 /**
@@ -798,22 +801,7 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
             }
             speed_str = "100 Mbps";
             break;
-            
-        case IXGBE_LINK_SPEED_10_FULL:
-            if (flow_tx || flow_rx) {
-                midx = MIDX_10FC;
-            } else {
-                midx = MIDX_10;
-            }
-            speed_str = "10 Mbps";
-            
-            pollParams.lowThresholdPackets = 2;
-            pollParams.highThresholdPackets = 8;
-            pollParams.lowThresholdBytes = 0x400;
-            pollParams.highThresholdBytes = 0x1800;
-            pollParams.pollIntervalTime = 1000000;  /* 1ms */
-            break;
-            
+                        
         default:
             speed_str = "unknown speed";
             break;
@@ -906,211 +894,44 @@ void IntelLucy::ixgbeConfigLink(const IONetworkMedium *medium)
     struct ixgbe_hw *hw = &adapter->hw;
     int err = IXGBE_ERR_LINK_SETUP;
     UInt32 index = medium->getIndex();
-    UInt32 speed;
-    u16 fc = ixgbe_fc_none;
+    UInt32 speed = IXGBE_LINK_SPEED_82599_AUTONEG;
+    UInt32 fc = ixgbe_fc_none;
     bool autoneg = false;
     
-    switch (index) {
-        case MIDX_AUTO:
+    if (index == MIDX_AUTO) {
+        if (hw->mac.ops.get_link_capabilities) {
             err = hw->mac.ops.get_link_capabilities(hw, &speed, &autoneg);
             
             if (err)
                 goto done;
             
             fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10:
-            speed = IXGBE_LINK_SPEED_10_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10FC:
-            speed = IXGBE_LINK_SPEED_10_FULL;
-            fc = ixgbe_fc_full;
-            break;
-            
-        case MIDX_100:
-            fc = ixgbe_fc_none;
-            speed = IXGBE_LINK_SPEED_100_FULL;
-            break;
-            
-        case MIDX_100FC:
-            speed = IXGBE_LINK_SPEED_100_FULL;
-            fc = ixgbe_fc_full;
-            break;
-            
-        case MIDX_1000:
-            speed = IXGBE_LINK_SPEED_1GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_1000FC:
-            speed = IXGBE_LINK_SPEED_1GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-            
-        case MIDX_10GB:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10GBFC:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_2500:
-            speed = IXGBE_LINK_SPEED_2_5GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_2500FC:
-            speed = IXGBE_LINK_SPEED_2_5GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_5000:
-            speed = IXGBE_LINK_SPEED_5GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_5000FC:
-            speed = IXGBE_LINK_SPEED_5GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_10_EEE:
-            speed = IXGBE_LINK_SPEED_10_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10FC_EEE:
-            speed = IXGBE_LINK_SPEED_10_FULL;
-            fc = ixgbe_fc_full;
-            break;
-            
-        case MIDX_100_EEE:
-            speed = IXGBE_LINK_SPEED_100_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_100FC_EEE:
-            speed = IXGBE_LINK_SPEED_100_FULL;
-            fc = ixgbe_fc_full;
-            break;
-            
-        case MIDX_1000_EEE:
-            speed = IXGBE_LINK_SPEED_1GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_1000FC_EEE:
-            speed = IXGBE_LINK_SPEED_1GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-            
-        case MIDX_10GB_EEE:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10GBFC_EEE:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_2500_EEE:
-            speed = IXGBE_LINK_SPEED_2_5GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_2500FC_EEE:
-            speed = IXGBE_LINK_SPEED_2_5GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_5000_EEE:
-            speed = IXGBE_LINK_SPEED_5GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_5000FC_EEE:
-            speed = IXGBE_LINK_SPEED_5GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_1GB_SX:
-            speed = IXGBE_LINK_SPEED_1GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_1GB_SX_FC:
-            speed = IXGBE_LINK_SPEED_1GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_10GB_SR:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10GB_SR_FC:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_1GB_LX:
-            speed = IXGBE_LINK_SPEED_1GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_1GB_LX_FC:
-            speed = IXGBE_LINK_SPEED_1GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_10GB_LR:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10GB_LR_FC:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_10GB_DA:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10GB_DA_FC:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        case MIDX_10GB_DAL:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_none;
-            break;
-            
-        case MIDX_10GB_DAL_FC:
-            speed = IXGBE_LINK_SPEED_10GB_FULL;
-            fc = ixgbe_fc_full;
-            break;
-
-        default:
-            goto done;
-            break;
+        }
+    } else {
+        medium2Advertise(medium, &speed, &fc);
     }
+    hw->phy.autoneg_advertised = speed;
+    
+    if (adapter->link_up && (speed == adapter->link_speed))
+        goto config_fc;
+
+    /* This sets the link speed and restarts auto-neg. */
+    while (test_and_set_bit(__IXGBE_IN_SFP_INIT, &adapter->state))
+        usleep_range(1000, 2000);
+
+    hw->mac.autotry_restart = true;
+
     if (hw->mac.ops.setup_link)
         err = hw->mac.ops.setup_link(hw, speed, true);
+
+    clear_bit(__IXGBE_IN_SFP_INIT, &adapter->state);
 
     if (err) {
         IOLog("Failed to set up link: %d.\n", err);
         goto done;
     }
+    
+config_fc:
     if (autoneg) {
         hw->mac.ops.fc_autoneg(hw);
     } else {
@@ -1178,7 +999,7 @@ void IntelLucy::ixgbeWatchdogSubtask(struct ixgbe_adapter *adapter)
 
     ixgbeUpdateStats(adapter);
 
-    ixgbeWatchdogFlushTx(adapter);
+    //ixgbeWatchdogFlushTx(adapter);
 }
 
 

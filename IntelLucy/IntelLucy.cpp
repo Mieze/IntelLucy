@@ -13,7 +13,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * Driver for Intel PCIe 10GB ethernet controllers.
+ * Driver for Intel PCIe 10Gbit ethernet controllers.
  *
  * This driver is based on Intel's ixgbe driver for Linux.
  */
@@ -151,7 +151,7 @@ bool IntelLucy::init(OSDictionary *properties)
         adapterData.pdev = &pciDeviceData;
         adapterData.link_up = false;
         mtu = ETH_DATA_LEN;
-        enableWoL = false;
+        enableASPM = false;
         wolActive = false;
         enableTSO4 = false;
         enableTSO6 = false;
@@ -236,11 +236,11 @@ bool IntelLucy::start(IOService *provider)
         IOLog("Failed to open provider.\n");
         goto error_open;
     }
+    getParams();
+
     if (!initPCIConfigSpace(pciDevice)) {
         goto error_open;
-    }
-    getParams();
-    
+    }    
     if (!ixgbeStart(deviceTable)) {
         goto error_open;
     }
@@ -461,6 +461,7 @@ IOReturn IntelLucy::disable(IONetworkInterface *netif)
     
     netif->stopOutputThread();
     netif->flushOutputQueue();
+    setLinkStatus(kIONetworkLinkValid);
     
     if (test_bit(__POLLING, &stateFlags)) {
         nanoseconds_to_absolutetime(5000, &delay);

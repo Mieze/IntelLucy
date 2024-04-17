@@ -1198,7 +1198,6 @@ void ixgbe_set_mta(struct ixgbe_hw *hw, u8 *mc_addr);
 void ixgbe_release_hw_control(struct ixgbe_adapter *adapter);
 void ixgbe_get_hw_control(struct ixgbe_adapter *adapter);
 void ixgbe_sfp_link_config(struct ixgbe_adapter *adapter);
-int ixgbe_non_sfp_link_config(struct ixgbe_hw *hw);
 void ixgbe_set_ivar(struct ixgbe_adapter *adapter, s8 direction,
                     u8 queue, u8 msix_vector);
 
@@ -1253,7 +1252,6 @@ void ixgbe_set_mta(struct ixgbe_hw *hw, u8 *mc_addr);
 void ixgbe_release_hw_control(struct ixgbe_adapter *adapter);
 void ixgbe_get_hw_control(struct ixgbe_adapter *adapter);
 void ixgbe_sfp_link_config(struct ixgbe_adapter *adapter);
-int ixgbe_non_sfp_link_config(struct ixgbe_hw *hw);
 void ixgbe_set_ivar(struct ixgbe_adapter *adapter, s8 direction,
                     u8 queue, u8 msix_vector);
 

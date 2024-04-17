@@ -13,7 +13,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * Driver for Intel PCIe 10GB ethernet controllers.
+ * Driver for Intel PCIe 10Gbit ethernet controllers.
  *
  * This driver is based on Intel's ixgbe driver for Linux.
  */
@@ -33,6 +33,8 @@ bool IntelLucy::initPCIConfigSpace(IOPCIDevice *provider)
 {
     struct ixgbe_adapter *adapter = &adapterData;
     struct ixgbe_hw *hw = &adapter->hw;
+    IOOptionBits aspmState = 0;
+    UInt32 pcieLinkCap = 0;
     UInt16 pcieLinkState = 0;
     bool result = false;
     
@@ -77,6 +79,21 @@ bool IntelLucy::initPCIConfigSpace(IOPCIDevice *provider)
                 hw->bus.width = ixgbe_bus_width_unknown;
                 break;
         }
+        pcieLinkCap = provider->extendedConfigRead32(pcieCapOffset + kIOPCIELinkCapability);
+        DebugLog("PCIe link capability: 0x%08x.\n", pcieLinkCap);
+
+        if (enableASPM && (pcieLinkCap & kIOPCIELinkCapASPMCompl)) {
+            if (pcieLinkCap & kIOPCIELinkCapL0sSup)
+                aspmState |= kIOPCILinkControlASPMBitsL0s;
+            
+            if (pcieLinkCap & kIOPCIELinkCapL1Sup)
+                aspmState |= kIOPCILinkControlASPMBitsL1;
+            
+            IOLog("Enable PCIe ASPM: 0x%08x.\n", aspmState);
+        } else {
+            IOLog("Disable PCIe ASPM.\n");
+        }
+        provider->setASPMState(this, aspmState);
     }
     switch (pcieLinkState & IXGBE_PCI_LINK_SPEED) {
         case IXGBE_PCI_LINK_SPEED_2500:
@@ -876,8 +893,8 @@ void IntelLucy::ixgbeUpComplete(struct ixgbe_adapter *adapter)
     if (ixgbe_is_sfp(hw)) {
         ixgbe_sfp_link_config(adapter);
     } else {
-        err = ixgbe_non_sfp_link_config(hw);
-        
+        err = ixgbeNonSfpLinkConfig(hw);
+
         if (err)
             IOLog("link_config() failed %d.\n", err);
     }
@@ -913,6 +930,54 @@ void IntelLucy::ixgbeUpComplete(struct ixgbe_adapter *adapter)
     IXGBE_WRITE_REG(hw, IXGBE_CTRL_EXT, ctrl_ext);
 
     DebugLog("ixgbeUpComplete");
+}
+
+/**
+ * ixgbeNonSfpLinkConfig - set up non-SFP+ link
+ * @hw: pointer to private hardware struct
+ *
+ * Returns 0 on success, negative on failure
+ **/
+SInt32 IntelLucy::ixgbeNonSfpLinkConfig(struct ixgbe_hw *hw)
+{
+    const IONetworkMedium *medium = getSelectedMedium();
+    SInt32 err = IXGBE_ERR_LINK_SETUP;
+    UInt32 index = MIDX_AUTO;
+    UInt32 fc = ixgbe_fc_none;
+    UInt32 speed = IXGBE_LINK_SPEED_82599_AUTONEG;
+    bool autoneg, link_up = false;
+
+    if (hw->mac.ops.check_link) {
+        err = hw->mac.ops.check_link(hw, &speed, &link_up, false);
+        
+        if (!link_up)
+            setLinkStatus(kIONetworkLinkValid);
+    }
+    if (err)
+        return err;
+
+    if (medium)
+        index = medium->getIndex();
+
+    if (index == MIDX_AUTO) {
+        if (hw->mac.ops.get_link_capabilities) {
+            err = hw->mac.ops.get_link_capabilities(hw, &speed, &autoneg);
+            
+            if (err)
+                goto done;
+            
+            fc = ixgbe_fc_none;
+        }
+    } else {
+        medium2Advertise(medium, &speed, &fc);
+    }
+    hw->phy.autoneg_advertised = speed;
+
+    if (hw->mac.ops.setup_link)
+        err = hw->mac.ops.setup_link(hw, speed, link_up);
+
+done:
+    return err;
 }
 
 void IntelLucy::ixgbeDown(struct ixgbe_adapter *adapter)

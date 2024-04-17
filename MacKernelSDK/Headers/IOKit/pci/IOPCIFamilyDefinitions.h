@@ -239,5 +239,12 @@ enum
     kIOPCICorrectableErrorBitHeaderLogOverflow  = 15,
 };
 
+enum tIOPCILinkControlASPMBits
+{
+    kIOPCILinkControlASPMBitsDisabled = 0,
+    kIOPCILinkControlASPMBitsL0s      = (1 << 0),
+    kIOPCILinkControlASPMBitsL1       = (1 << 1),
+    kIOPCILinkControlASPMBitsL0sL1    = kIOPCILinkControlASPMBitsL0s | kIOPCILinkControlASPMBitsL1
+};
 
 #endif /* IOPCIDefinitions_h */

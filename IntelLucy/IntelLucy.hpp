@@ -13,7 +13,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * Driver for Intel PCIe 10GB ethernet controllers.
+ * Driver for Intel PCIe 10Gbit ethernet controllers.
  *
  * This driver is based on Intel's ixgbe driver for Linux.
  */
@@ -45,8 +45,6 @@
 enum
 {
     MIDX_AUTO = 0,
-    MIDX_10,
-    MIDX_10FC,
     MIDX_100,
     MIDX_100FC,
     MIDX_1000,
@@ -57,8 +55,6 @@ enum
     MIDX_2500FC,
     MIDX_5000,
     MIDX_5000FC,
-    MIDX_10_EEE,
-    MIDX_10FC_EEE,
     MIDX_100_EEE,
     MIDX_100FC_EEE,
     MIDX_1000_EEE,
@@ -87,6 +83,9 @@ enum
 #define MBit 1000000ULL
 
 enum {
+    kSpeed10000MBit = 10000*MBit,
+    kSpeed5000MBit = 5000*MBit,
+    kSpeed2500MBit = 2500*MBit,
     kSpeed1000MBit = 1000*MBit,
     kSpeed100MBit = 100*MBit,
     kSpeed10MBit = 10*MBit,
@@ -200,6 +199,13 @@ enum
 
 enum
 {
+    kIOPCIELinkCapL0sSup = 0x00000400UL,
+    kIOPCIELinkCapL1Sup = 0x00000800UL,
+    kIOPCIELinkCapASPMCompl = 0x00400000UL,
+};
+
+enum
+{
     kIOPCIEDevCtlReadQ = 0x7000,
 };
 
@@ -214,7 +220,7 @@ enum
 #define kEnableTSO4Name "enableTSO4"
 #define kEnableTSO6Name "enableTSO6"
 #define kEnableWoAName "enableWakeOnAddr"
-#define kEnableWakeOnLAN "forceWoL"
+#define kEnableASPM "enableASPM"
 #define kDriverVersionName "DriverVersion"
 #define kRxCoalescingName "rxCoalescing"
 #define kRxBufferSize4kName "rxBufferSize4k"
@@ -303,6 +309,8 @@ struct mediumTable {
     IOMediumType    type;
     UInt64          speed;
     UInt32          idx;
+    UInt32          adv;
+    UInt32          fc;
 };
 
 enum IntelLucyStateFlags {
@@ -381,6 +389,7 @@ private:
     bool createMediaTable();
     bool updateMediumDict();
     void updateSelectedMedium();
+    void medium2Advertise(const IONetworkMedium *medium, UInt32 *adv, UInt32 *fc);
     bool initEventSources(IOService *provider);
     bool setupDMADescriptors();
     void freeDMADescriptors();
@@ -433,7 +442,8 @@ private:
     SInt32 ixgbeResetHwX540(struct ixgbe_hw *hw);
     SInt32 ixgbeResetHw82599(struct ixgbe_hw *hw);
     SInt32 ixgbeInitHwGeneric(struct ixgbe_hw *hw);
-
+    SInt32 ixgbeNonSfpLinkConfig(struct ixgbe_hw *hw);
+    
     void ixgbeWatchdogLinkIsDown(struct ixgbe_adapter *adapter);
     void ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter);
     void ixgbeWatchdogUpdateLink(struct ixgbe_adapter *adapter);
@@ -569,7 +579,7 @@ private:
     bool wolActive;
     bool enableTSO4;
     bool enableTSO6;
-    bool enableWoL;
+    bool enableASPM;
     bool enableRSC;
     bool allowUnsupportedSFP;
 };

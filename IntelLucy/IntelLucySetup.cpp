@@ -13,7 +13,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * Driver for Intel PCIe gigabit ethernet controllers.
+ * Driver for Intel PCIe 10Gbit ethernet controllers.
  *
  * This driver is based on Intel's ixgbe driver for Linux.
  */
@@ -21,49 +21,45 @@
 #include "IntelLucy.hpp"
 
 struct mediumTable mediumArray[MIDX_COUNT] = {
-    { .type = kIOMediumEthernetAuto, .speed = 10000 * MBit, .idx = MIDX_AUTO },
+    { .type = kIOMediumEthernetAuto, .speed = kSpeed10000MBit, .idx = MIDX_AUTO, .adv = IXGBE_LINK_SPEED_82599_AUTONEG, .fc = ixgbe_fc_none },
     
     /* copper media without EEE */
-    { .type =(kIOMediumEthernet10BaseT | IFM_FDX), .speed = 10 * MBit, .idx = MIDX_10 },
-    { .type =(kIOMediumEthernet10BaseT | IFM_FDX | IFM_FLOW), .speed = 10 * MBit, .idx = MIDX_10FC },
-    { .type =(kIOMediumEthernet100BaseTX | IFM_FDX), .speed = 100 * MBit, .idx = MIDX_100 },
-    { .type =(kIOMediumEthernet100BaseTX | IFM_FDX | IFM_FLOW), .speed = 100 * MBit, .idx = MIDX_100FC },
-    { .type =(kIOMediumEthernet1000BaseT | IFM_FDX), .speed = 1000 * MBit, .idx = MIDX_1000 },
-    { .type =(kIOMediumEthernet1000BaseT | IFM_FDX | IFM_FLOW), .speed = 1000 * MBit, .idx = MIDX_1000FC },
-    { .type =(kIOMediumEthernet10GBaseT | IFM_FDX), .speed = 10000 * MBit, .idx = MIDX_10GB },
-    { .type =(kIOMediumEthernet10GBaseT | IFM_FDX | IFM_FLOW), .speed = 10000 * MBit, .idx = MIDX_10GBFC },
-    { .type =(kIOMediumEthernet2500BaseT | IFM_FDX), .speed = 2500 * MBit, .idx = MIDX_2500 },
-    { .type =(kIOMediumEthernet2500BaseT | IFM_FDX | IFM_FLOW), .speed = 2500 * MBit, .idx = MIDX_2500FC },
-    { .type =(kIOMediumEthernet5000BaseT | IFM_FDX), .speed = 5000 * MBit, .idx = MIDX_5000 },
-    { .type =(kIOMediumEthernet5000BaseT | IFM_FDX | IFM_FLOW), .speed = 5000 * MBit, .idx = MIDX_5000FC },
+    { .type =(kIOMediumEthernet100BaseTX | IFM_FDX), .speed = kSpeed100MBit, .idx = MIDX_100, .adv = IXGBE_LINK_SPEED_100_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet100BaseTX | IFM_FDX | IFM_FLOW), .speed = kSpeed100MBit, .idx = MIDX_100FC, .adv = IXGBE_LINK_SPEED_100_FULL, .fc = ixgbe_fc_full },
+    { .type =(kIOMediumEthernet1000BaseT | IFM_FDX), .speed = kSpeed1000MBit, .idx = MIDX_1000, .adv = IXGBE_LINK_SPEED_1GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet1000BaseT | IFM_FDX | IFM_FLOW), .speed = kSpeed1000MBit, .idx = MIDX_1000FC, .adv = IXGBE_LINK_SPEED_1GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(kIOMediumEthernet10GBaseT | IFM_FDX), .speed = kSpeed10000MBit, .idx = MIDX_10GB, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet10GBaseT | IFM_FDX | IFM_FLOW), .speed = kSpeed10000MBit, .idx = MIDX_10GBFC, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(kIOMediumEthernet2500BaseT | IFM_FDX), .speed = kSpeed2500MBit, .idx = MIDX_2500, .adv = IXGBE_LINK_SPEED_2_5GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet2500BaseT | IFM_FDX | IFM_FLOW), .speed = kSpeed2500MBit, .idx = MIDX_2500FC, .adv = IXGBE_LINK_SPEED_2_5GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(kIOMediumEthernet5000BaseT | IFM_FDX), .speed = kSpeed5000MBit, .idx = MIDX_5000, .adv = IXGBE_LINK_SPEED_5GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet5000BaseT | IFM_FDX | IFM_FLOW), .speed = kSpeed5000MBit, .idx = MIDX_5000FC, .adv = IXGBE_LINK_SPEED_5GB_FULL, .fc = ixgbe_fc_full },
     
     /* copper media with EEE */
-    { .type =(kIOMediumEthernet10BaseT | IFM_FDX), .speed = 10 * MBit, .idx = MIDX_10_EEE },
-    { .type =(kIOMediumEthernet10BaseT | IFM_FDX | IFM_FLOW), .speed = 10 * MBit, .idx = MIDX_10FC_EEE },
-    { .type =(kIOMediumEthernet100BaseTX | IFM_FDX), .speed = 100 * MBit, .idx = MIDX_100_EEE },
-    { .type =(kIOMediumEthernet100BaseTX | IFM_FDX | IFM_FLOW), .speed = 100 * MBit, .idx = MIDX_100FC_EEE },
-    { .type =(kIOMediumEthernet1000BaseT | IFM_FDX), .speed = 1000 * MBit, .idx = MIDX_1000_EEE },
-    { .type =(kIOMediumEthernet1000BaseT | IFM_FDX | IFM_FLOW), .speed = 1000 * MBit, .idx = MIDX_1000FC_EEE },
-    { .type =(kIOMediumEthernet10GBaseT | IFM_FDX), .speed = 10000 * MBit, .idx = MIDX_10GB_EEE },
-    { .type =(kIOMediumEthernet10GBaseT | IFM_FDX | IFM_FLOW), .speed = 10000 * MBit, .idx = MIDX_10GBFC_EEE },
-    { .type =(kIOMediumEthernet2500BaseT | IFM_FDX), .speed = 2500 * MBit, .idx = MIDX_2500_EEE },
-    { .type =(kIOMediumEthernet2500BaseT | IFM_FDX | IFM_FLOW), .speed = 2500 * MBit, .idx = MIDX_2500FC_EEE },
-    { .type =(kIOMediumEthernet5000BaseT | IFM_FDX), .speed = 5000 * MBit, .idx = MIDX_5000_EEE },
-    { .type =(kIOMediumEthernet5000BaseT | IFM_FDX | IFM_FLOW), .speed = 5000 * MBit, .idx = MIDX_5000FC_EEE },
+    { .type =(kIOMediumEthernet100BaseTX | IFM_FDX), .speed = kSpeed100MBit, .idx = MIDX_100_EEE, .adv = IXGBE_LINK_SPEED_100_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet100BaseTX | IFM_FDX | IFM_FLOW), .speed = kSpeed100MBit, .idx = MIDX_100FC_EEE, .adv = IXGBE_LINK_SPEED_100_FULL, .fc = ixgbe_fc_full },
+    { .type =(kIOMediumEthernet1000BaseT | IFM_FDX), .speed = kSpeed1000MBit, .idx = MIDX_1000_EEE, .adv = IXGBE_LINK_SPEED_1GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet1000BaseT | IFM_FDX | IFM_FLOW), .speed = kSpeed1000MBit, .idx = MIDX_1000FC_EEE, .adv = IXGBE_LINK_SPEED_1GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(kIOMediumEthernet10GBaseT | IFM_FDX), .speed = kSpeed10000MBit, .idx = MIDX_10GB_EEE, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet10GBaseT | IFM_FDX | IFM_FLOW), .speed = kSpeed10000MBit, .idx = MIDX_10GBFC_EEE, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(kIOMediumEthernet2500BaseT | IFM_FDX), .speed = kSpeed2500MBit, .idx = MIDX_2500_EEE, .adv = IXGBE_LINK_SPEED_2_5GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet2500BaseT | IFM_FDX | IFM_FLOW), .speed = kSpeed2500MBit, .idx = MIDX_2500FC_EEE, .adv = IXGBE_LINK_SPEED_2_5GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(kIOMediumEthernet5000BaseT | IFM_FDX), .speed = kSpeed5000MBit, .idx = MIDX_5000_EEE, .adv = IXGBE_LINK_SPEED_5GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(kIOMediumEthernet5000BaseT | IFM_FDX | IFM_FLOW), .speed = kSpeed5000MBit, .idx = MIDX_5000FC_EEE, .adv = IXGBE_LINK_SPEED_5GB_FULL, .fc = ixgbe_fc_full },
 
     /* fiber and DAC media */
-    { .type =(IFM_1000_SX | IFM_ETHER | IFM_FDX), .speed = 1000 * MBit, .idx = MIDX_1GB_SX },
-    { .type =(IFM_1000_SX | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = 1000 * MBit, .idx = MIDX_1GB_SX_FC },
-    { .type =(IFM_10G_SR | IFM_ETHER | IFM_FDX), .speed = 10000 * MBit, .idx = MIDX_10GB_SR },
-    { .type =(IFM_10G_SR | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = 10000 * MBit, .idx = MIDX_10GB_SR_FC },
-    { .type =(IFM_1000_LX | IFM_ETHER | IFM_FDX), .speed = 1000 * MBit, .idx = MIDX_1GB_LX },
-    { .type =(IFM_1000_LX | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = 1000 * MBit, .idx = MIDX_1GB_LX_FC },
-    { .type =(IFM_10G_LR | IFM_ETHER | IFM_FDX), .speed = 10000 * MBit, .idx = MIDX_10GB_LR },
-    { .type =(IFM_10G_LR | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = 10000 * MBit, .idx = MIDX_10GB_LR_FC },
-    { .type =(IFM_10G_TWINAX | IFM_ETHER | IFM_FDX), .speed = 10000 * MBit, .idx = MIDX_10GB_DA },
-    { .type =(IFM_10G_TWINAX | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = 10000 * MBit, .idx = MIDX_10GB_DA_FC },
-    { .type =(IFM_10G_TWINAX_LONG | IFM_ETHER | IFM_FDX), .speed = 10000 * MBit, .idx = MIDX_10GB_DAL },
-    { .type =(IFM_10G_TWINAX_LONG | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = 10000 * MBit, .idx = MIDX_10GB_DAL_FC },
+    { .type =(IFM_1000_SX | IFM_ETHER | IFM_FDX), .speed = kSpeed1000MBit, .idx = MIDX_1GB_SX, .adv = IXGBE_LINK_SPEED_1GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(IFM_1000_SX | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = kSpeed1000MBit, .idx = MIDX_1GB_SX_FC, .adv = IXGBE_LINK_SPEED_1GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(IFM_10G_SR | IFM_ETHER | IFM_FDX), .speed = kSpeed10000MBit, .idx = MIDX_10GB_SR, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(IFM_10G_SR | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = kSpeed10000MBit, .idx = MIDX_10GB_SR_FC, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(IFM_1000_LX | IFM_ETHER | IFM_FDX), .speed = kSpeed1000MBit, .idx = MIDX_1GB_LX, .adv = IXGBE_LINK_SPEED_1GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(IFM_1000_LX | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = kSpeed1000MBit, .idx = MIDX_1GB_LX_FC, .adv = IXGBE_LINK_SPEED_1GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(IFM_10G_LR | IFM_ETHER | IFM_FDX), .speed = kSpeed10000MBit, .idx = MIDX_10GB_LR, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(IFM_10G_LR | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = kSpeed10000MBit, .idx = MIDX_10GB_LR_FC, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(IFM_10G_TWINAX | IFM_ETHER | IFM_FDX), .speed = kSpeed10000MBit, .idx = MIDX_10GB_DA, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(IFM_10G_TWINAX | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = kSpeed10000MBit, .idx = MIDX_10GB_DA_FC, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_full },
+    { .type =(IFM_10G_TWINAX_LONG | IFM_ETHER | IFM_FDX), .speed = kSpeed10000MBit, .idx = MIDX_10GB_DAL, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_none },
+    { .type =(IFM_10G_TWINAX_LONG | IFM_ETHER | IFM_FDX | IFM_FLOW), .speed = kSpeed10000MBit, .idx = MIDX_10GB_DAL_FC, .adv = IXGBE_LINK_SPEED_10GB_FULL, .fc = ixgbe_fc_full },
 };
 
 static const char *onName = "enabled";
@@ -77,7 +73,7 @@ void IntelLucy::getParams()
     OSString *versionString;
     OSBoolean *tsoV4;
     OSBoolean *tsoV6;
-    OSBoolean *wake;
+    OSBoolean *aspm;
     OSBoolean *rsc;
     OSBoolean *buf4k;
     OSNumber *tv;
@@ -99,10 +95,10 @@ void IntelLucy::getParams()
         
         IOLog("TCP/IPv6 segmentation offload %s.\n", enableTSO6 ? onName : offName);
         
-        wake = OSDynamicCast(OSBoolean, params->getObject(kEnableWakeOnLAN));
-        enableWoL = (wake != NULL) ? wake->getValue() : false;
+        aspm = OSDynamicCast(OSBoolean, params->getObject(kEnableASPM));
+        enableASPM = (aspm != NULL) ? aspm->getValue() : false;
         
-        IOLog("Force WoL %s.\n", enableWoL ? onName : offName);
+        IOLog("Active State Power Management %s.\n", enableASPM ? onName : offName);
 
         rsc = OSDynamicCast(OSBoolean, params->getObject(kRxCoalescingName));
         enableRSC = (rsc != NULL) ? rsc->getValue() : false;
@@ -159,7 +155,7 @@ void IntelLucy::getParams()
             else
                 pollTime2G = interval * 1000;
         } else {
-            pollTime2G = 130000;
+            pollTime2G = 110000;
         }
         tv = OSDynamicCast(OSNumber, params->getObject(kRxItrTimeName));
 
@@ -193,18 +189,18 @@ void IntelLucy::getParams()
         /* Use default values in case of missing config data. */
         enableTSO4 = false;
         enableTSO6 = false;
-        enableWoL = false;
+        enableASPM = false;
         enableRSC = false;
         rxBufferPktSize = kRxBufferPktSize2K;
         pollTime10G = 55000;
         pollTime5G = 90000;
-        pollTime2G = 130000;
+        pollTime2G = 110000;
         rxThrottleTime = 30;
         txThrottleTime = 60;
     }
     /* Fix features. */
-    if ((rxThrottleTime < IXGBE_MIN_RSC_ITR) ||
-        (txThrottleTime < IXGBE_MIN_RSC_ITR)) {
+    if (((rxThrottleTime < IXGBE_MIN_RSC_ITR) && (rxThrottleTime > 0)) ||
+        ((txThrottleTime < IXGBE_MIN_RSC_ITR) && (txThrottleTime > 0))) {
         enableRSC = false;
     }
     if (versionString)
@@ -340,7 +336,7 @@ bool IntelLucy::updateMediumDict()
                 break;
                 
             case ixgbe_media_type_copper:
-                start = MIDX_10;
+                start = MIDX_100;
 
                 /* Only the X550 supports N-Base-T and EEE. */
                 if (hw->mac.type <= ixgbe_mac_X540)
@@ -403,6 +399,14 @@ void IntelLucy::updateSelectedMedium()
     } else {
         setCurrentMedium(mediaTable[MIDX_AUTO]);
     }
+}
+
+void IntelLucy::medium2Advertise(const IONetworkMedium *medium, UInt32 *adv, UInt32 *fc)
+{
+    UInt32 idx = medium->getIndex();
+
+    *adv = mediumArray[idx].adv;
+    *fc = mediumArray[idx].fc;
 }
 
 bool IntelLucy::initEventSources(IOService *provider)
