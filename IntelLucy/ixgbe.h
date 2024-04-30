@@ -1316,6 +1316,7 @@ struct mii_bus {
     int (*write_c45)(struct mii_bus *bus, int addr, int devnum,
              int regnum, u16 val);
     void *priv;
+    u32 phy_mask;
 };
 
 #endif /* _IXGBE_H_ */

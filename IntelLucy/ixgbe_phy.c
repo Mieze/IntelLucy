@@ -308,6 +308,9 @@ s32 ixgbe_identify_phy_generic(struct ixgbe_hw *hw)
 	if (status)
 		hw->phy.mdio.prtad = MDIO_PRTAD_NONE;
 
+    hw->phy.mdio.prtad = 0;
+    //IOLog("prtad: 0x%0x, mmds: 0x%0x, type: 0x%0x\n", hw->phy.mdio.prtad, hw->phy.mdio.mmds, hw->phy.type);
+
 	return status;
 }
 

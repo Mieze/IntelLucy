@@ -845,7 +845,7 @@ bool IntelLucy::configureInterface(IONetworkInterface *interface)
         result = false;
         goto done;
     }
-    snprintf(modelName, kNameLenght, "Intel %s PCIe 10 GBit Ethernet", deviceTable[chip].deviceName);
+    snprintf(modelName, kNameLenght, "Intel %s PCIe 10Gbit Ethernet", deviceTable[chip].deviceName);
     setProperty("model", modelName);
     
 done:

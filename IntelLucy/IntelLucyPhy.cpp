@@ -420,7 +420,7 @@ static s32 ixgbe_mii_bus_write_c45(struct mii_bus *bus, int addr, int devad,
  **/
 void ixgbe_mii_bus_init(struct ixgbe_adapter *adapter)
 {
-    //struct ixgbe_hw *hw = &adapter->hw;
+    struct ixgbe_hw *hw = &adapter->hw;
     struct mii_bus *bus = adapter->mii_bus;
     
     bus->read = ixgbe_mii_bus_read_c22;
@@ -429,4 +429,8 @@ void ixgbe_mii_bus_init(struct ixgbe_adapter *adapter)
     bus->write_c45 = ixgbe_mii_bus_write_c45;
     
     bus->priv = adapter;
+    //bus->phy_mask = GENMASK(31, 0);
+    bus->phy_mask = 0xffffffff;
+    
+    hw->phy.mdio.mode_support = MDIO_SUPPORTS_C45 | MDIO_SUPPORTS_C22;
 }

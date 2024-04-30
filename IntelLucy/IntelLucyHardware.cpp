@@ -478,6 +478,7 @@ bool IntelLucy::ixgbeStart(const struct intelDevice *devTable)
 
     /* MII bus */
     adapterData.mii_bus = &miiBus;
+    ixgbe_mii_bus_init(adapter);
     
     /* PHY */
     hw->phy.ops = *ii->phy_ops;
@@ -662,8 +663,6 @@ bool IntelLucy::ixgbeStart(const struct intelDevice *devTable)
         hw->mac.ops.setup_link(hw,
             IXGBE_LINK_SPEED_10GB_FULL | IXGBE_LINK_SPEED_1GB_FULL,
             true);
-
-    ixgbe_mii_bus_init(adapter);
 
     result = true;
 
@@ -1015,6 +1014,7 @@ void IntelLucy::ixgbeDisable(struct ixgbe_adapter *adapter)
 {
     struct ixgbe_hw *hw = &adapter->hw;
     UInt32 wufc = adapter->wol;
+    UInt32 wuc;
     UInt32 fctrl;
     UInt32 ctrl;
 
@@ -1046,6 +1046,11 @@ void IntelLucy::ixgbeDisable(struct ixgbe_adapter *adapter)
         ctrl = IXGBE_READ_REG(hw, IXGBE_CTRL);
         ctrl |= IXGBE_CTRL_GIO_DIS;
         IXGBE_WRITE_REG(hw, IXGBE_CTRL, ctrl);
+
+        wuc = IXGBE_READ_REG(hw, IXGBE_WUC);
+        wuc &= ~IXGBE_WUC_PME_EN;
+        wuc |= IXGBE_WUC_PME_STATUS;
+        IXGBE_WRITE_REG(hw, IXGBE_WUC, wuc);
 
         IXGBE_WRITE_REG(hw, IXGBE_WUFC, wufc);
     } else {
