@@ -34,17 +34,18 @@ https://www.insanelymac.com/forum/topic/359009-intellucy-for-the-intel-x500-fami
   - Passive DAC cable: working
   - 10GBase-SR SFP+ modules: working
   - 1000Base-T SFP modules: working
-- X540-TA1: working (see note below).
-- X540-TA2: both ports working (see note below).
+- X540-TA1: working
+- X540-TA2: both ports working
  
 **Known Issues**
+- Manual medium selection is working on X540 and X550 since version 1.0.4.
 - Try to avoid media with flow control enabled as it might cause repeated connection drops due to transmitter hangs and serious performance issues.
 - For WoL to work you need 4 things:
-  - An adapter which supports WoL (only a few X520 adapters support it).
+  - An adapter which supports WoL (only a few X520 adapters support WoL).
   - A mainboard which supports WoL from an add-in card.
   - WoL must be enabled in the UEFI setup.
   - Proper ACPI tables for MacOS to support wakeup.
-
+    
 **Installation**
 - Use OpenCore to inject the driver:
 ![image](https://github.com/Mieze/IntelLucy/assets/4229650/247aec7d-200b-450f-b745-fb84b0de273f)
