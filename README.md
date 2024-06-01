@@ -1,6 +1,9 @@
 ## IntelLucy
 IntelLucy is an open source driver for the Intel X500 family of 10GBit Ethernet controllers.
- 
+
+For support requests please refer to IntelLucy's project homepage at insanelymac.com
+https://www.insanelymac.com/forum/topic/359009-intellucy-for-the-intel-x500-family/
+
 **Key Features of the Driver**
 - Supports Intel X520, X540, X550 and 82598 Ethernet adapters.
 - Support for multisegment packets relieving the network stack of unnecessary copy operations when assembling packets for transmission.
@@ -25,6 +28,14 @@ IntelLucy is an open source driver for the Intel X500 family of 10GBit Ethernet 
 - Manual medium slecetion has been fixed for X540 and X550 in version 1.0.4.
 - VLAN support has been fixed and tested in version 1.0.0.
 - Wake on LAN has been fixed and confirmed to work in version 1.0.4.
+
+**Tested Configurations**
+- X520-DA1 with the following media:
+  - Passive DAC cable: working
+  - 10GBase-SR SFP+ modules: working
+  - 1000Base-T SFP modules: working
+- X540-TA1: working (see note below).
+- X540-TA2: both ports working (see note below).
  
 **Known Issues**
 - Try to avoid media with flow control enabled as it might cause repeated connection drops due to transmitter hangs and serious performance issues.
