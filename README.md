@@ -15,7 +15,7 @@ https://www.insanelymac.com/forum/topic/359009-intellucy-for-the-intel-x500-fami
 - Designed to work with High Sierra and above.
 - Supports Wake on LAN.
 - Supports hardware VLAN tagging.
-- Support for Energy Efficient Ethernet (EEE) is planned for future releaes.
+- Support for Energy Efficient Ethernet (EEE) is planned for future releases.
 - Compatible with AppleVTD but also works without.
 - No need for hardware modifications anymore (used to be required for SmalltreeIntel8259x.kext). 
 - The driver is published under GPLv2.
