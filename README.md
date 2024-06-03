@@ -38,6 +38,7 @@ https://www.insanelymac.com/forum/topic/359009-intellucy-for-the-intel-x500-fami
 - X540-TA2: both ports working
  
 **Known Issues**
+- Please keep in mind that X520 adapters don't support 10GBase-T SFP+ modules because the module's power requirement (approximately 3W) exceeds the adapter's limits. Installing a 10GBase-T SFP+ module in a X520 adapter anyway may damage the device.
 - Manual medium selection is working on X540 and X550 since version 1.0.4.
 - Try to avoid media with flow control enabled as it might cause repeated connection drops due to transmitter hangs and serious performance issues.
 - For WoL to work you need 4 things:
