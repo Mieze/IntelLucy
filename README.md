@@ -36,6 +36,7 @@ https://www.insanelymac.com/forum/topic/359009-intellucy-for-the-intel-x500-fami
   - 1000Base-T SFP modules: working
 - X540-TA1: working
 - X540-TA2: both ports working
+- X550-T1: working
  
 **Known Issues**
 - Please keep in mind that X520 adapters don't support 10GBase-T SFP+ modules because the module's power requirement (approximately 3W) exceeds the adapter's limits. Installing a 10GBase-T SFP+ module in a X520 adapter anyway may damage the device.
