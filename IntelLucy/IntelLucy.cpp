@@ -164,6 +164,15 @@ bool IntelLucy::init(OSDictionary *properties)
         nanoseconds_to_absolutetime(kTimespan4ms, &itrUpdatePeriod);
         rxThrottleTime = 30;
         txThrottleTime = 60;
+        
+        /*
+         * Select maximum interrupt latency based on
+         * major kernel version.
+         */
+        if (version_major >= Sonoma)
+            intrLatency = kMaxIntrLatencySono;
+        else
+            intrLatency = kMaxIntrLatencyVent;
     }
     
 done:

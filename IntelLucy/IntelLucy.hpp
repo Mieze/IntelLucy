@@ -27,12 +27,6 @@
 
 #include "IntelLucySupport.hpp"
 
-#ifdef DEBUG
-#define DebugLog(args...) IOLog(args)
-#else
-#define DebugLog(args...)
-#endif
-
 #define    RELEASE(x)    if(x){(x)->release();(x)=NULL;}
 
 #define ReleaseMcAddrList() if(mcAddrList) { \
@@ -159,8 +153,13 @@ enum {
 #define kTxHungTreshhold 2
 
 /* Maximum DMA latency in ns. */
-#define kMaxDmaLatency 900000
-#define kMaxIntrLatency 50000
+#define kMaxDmaLatency 90000
+
+/* Maximum DMA latency in ns for Sonoma and above. */
+#define kMaxIntrLatencySono 45000
+
+/* Maximum DMA latency in ns for Ventura and below. */
+#define kMaxIntrLatencyVent 50000
 
 #define kMacHdrLen      14
 #define kIPv4HdrLen     20
@@ -330,6 +329,35 @@ enum IntelLucyStateMask {
     __POLL_MODE_M = (1 << __POLL_MODE),
     __POLLING_M = (1 << __POLLING),
 };
+
+/**
+ *  Known kernel versions
+ */
+enum KernelVersion {
+    Tiger         = 8,
+    Leopard       = 9,
+    SnowLeopard   = 10,
+    Lion          = 11,
+    MountainLion  = 12,
+    Mavericks     = 13,
+    Yosemite      = 14,
+    ElCapitan     = 15,
+    Sierra        = 16,
+    HighSierra    = 17,
+    Mojave        = 18,
+    Catalina      = 19,
+    BigSur        = 20,
+    Monterey      = 21,
+    Ventura       = 22,
+    Sonoma        = 23,
+    Sequoia       = 24,
+};
+
+/**
+ *  Kernel version major
+ */
+extern const int version_major;
+
 
 class IntelLucy : public super
 {
@@ -573,6 +601,9 @@ private:
     UInt32 rxThrottleTime;
     UInt32 txThrottleTime;
 
+    /* maximum interrupt latency */
+    UInt32 intrLatency;
+    
     /* flags */
     UInt32 stateFlags;
         

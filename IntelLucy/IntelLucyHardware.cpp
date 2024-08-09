@@ -477,8 +477,7 @@ bool IntelLucy::ixgbeStart(const struct intelDevice *devTable)
         hw->eeprom.ops.read = &ixgbe_read_eeprom_bit_bang_generic;
 
     /* MII bus */
-    adapterData.mii_bus = &miiBus;
-    ixgbe_mii_bus_init(adapter);
+    adapter->mii_bus = NULL;
     
     /* PHY */
     hw->phy.ops = *ii->phy_ops;
@@ -495,15 +494,15 @@ bool IntelLucy::ixgbeStart(const struct intelDevice *devTable)
     if (!ixgbeSwInit(adapter, ii))
         goto done;
     
-    if (adapterData.hw.mac.type == ixgbe_mac_82599EB)
-        adapterData.flags2 |= IXGBE_FLAG2_AUTO_DISABLE_VF;
+    if (adapter->hw.mac.type == ixgbe_mac_82599EB)
+        adapter->flags2 |= IXGBE_FLAG2_AUTO_DISABLE_VF;
 
     /* Make sure the SWFW semaphore is in a valid state */
     if (hw->mac.ops.init_swfw_sync)
         hw->mac.ops.init_swfw_sync(hw);
 
     /* Make it possible the adapter to be woken up via WOL */
-    switch (adapterData.hw.mac.type) {
+    switch (hw->mac.type) {
         case ixgbe_mac_82599EB:
         case ixgbe_mac_X540:
         case ixgbe_mac_X550:
@@ -532,7 +531,7 @@ bool IntelLucy::ixgbeStart(const struct intelDevice *devTable)
     /* reset_hw fills in the perm_addr as well */
     hw->phy.reset_if_overtemp = true;
     
-    switch (adapterData.hw.mac.type) {
+    switch (hw->mac.type) {
         case ixgbe_mac_82599EB:
             err = ixgbeResetHw82599(hw);
             break;
@@ -663,6 +662,9 @@ bool IntelLucy::ixgbeStart(const struct intelDevice *devTable)
         hw->mac.ops.setup_link(hw,
             IXGBE_LINK_SPEED_10GB_FULL | IXGBE_LINK_SPEED_1GB_FULL,
             true);
+
+    adapter->mii_bus = &miiBus;
+    ixgbe_mii_bus_init(adapter);
 
     result = true;
 

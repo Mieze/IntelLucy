@@ -58,5 +58,11 @@ extern "C" {
 
 #endif // __cplusplus
 
+#ifdef DEBUG
+#define DebugLog(args...) IOLog(args)
+#else
+#define DebugLog(args...)
+#endif
+
 
 #include "linux.h"

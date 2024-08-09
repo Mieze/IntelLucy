@@ -829,7 +829,7 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
     IOLog("Link up on en%u, %s, full-duplex%s%s\n", netif->getUnitNumber(), speed_str, flow_str, eee_str);
     
     requireMaxBusStall(kMaxDmaLatency);
-    requireMaxInterruptDelay(kMaxIntrLatency);
+    requireMaxInterruptDelay(intrLatency);
     
     /* Start output thread, statistics update and hang check. */
     netif->startOutputThread();

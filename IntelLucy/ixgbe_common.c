@@ -2411,7 +2411,8 @@ static s32 ixgbe_fc_autoneg_copper(struct ixgbe_hw *hw)
  *  Compares our advertised flow control capabilities to those advertised by
  *  our link partner, and determines the proper flow control mode to use.
  **/
-void ixgbe_fc_autoneg(struct ixgbe_hw *hw)
+void 
+ixgbe_fc_autoneg(struct ixgbe_hw *hw)
 {
 	s32 ret_val = IXGBE_ERR_FC_NOT_NEGOTIATED;
 	ixgbe_link_speed speed;
