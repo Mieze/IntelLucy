@@ -644,6 +644,9 @@ struct ixgbe_adapter {
 	struct bpf_prog *xdp_prog;
 	struct pci_dev *pdev;
 	struct mii_bus *mii_bus;
+    
+    /* pointer to the owning object */
+    void *owner;
 
 	unsigned int state;
 
@@ -1237,6 +1240,13 @@ s32 ixgbe_read_eeprom_bit_bang_generic(struct ixgbe_hw *hw, u16 offset,
 s32 ixgbe_init_eeprom_params_generic(struct ixgbe_hw *hw);
 int mdio45_probe(struct mdio_if_info *mdio, int prtad);
 
+/* Functions from IntelLucy */
+void ixgbe_service_event_schedule(void *owner, struct ixgbe_adapter *adapter);
+
+void ixgbe_remove_adapter(struct ixgbe_hw *hw);
+u32 ixgbe_check_remove(struct ixgbe_hw *hw, u32 reg);
+u32 ixgbe_read_reg(struct ixgbe_hw *hw, u32 reg);
+
 }
 #else
 
@@ -1290,6 +1300,13 @@ s32 ixgbe_read_eeprom_bit_bang_generic(struct ixgbe_hw *hw, u16 offset,
                        u16 *data);
 s32 ixgbe_init_eeprom_params_generic(struct ixgbe_hw *hw);
 int mdio45_probe(struct mdio_if_info *mdio, int prtad);
+
+/* Functions from IntelLucy */
+void ixgbe_service_event_schedule(void *owner, struct ixgbe_adapter *adapter);
+
+void ixgbe_remove_adapter(struct ixgbe_hw *hw);
+u32 ixgbe_check_remove(struct ixgbe_hw *hw, u32 reg);
+u32 ixgbe_read_reg(struct ixgbe_hw *hw, u32 reg);
 
 #endif // __cplusplus
 

@@ -133,7 +133,7 @@ enum {
 
 };
 
-#define kRxNumSpareMbufs 100
+#define kRxNumSpareMbufs 200
 #define kMaxMtu 9216
 #define kMaxPacketSize (kMaxMtu + ETH_HLEN + ETH_FCS_LEN)
 
@@ -412,6 +412,8 @@ public:
     virtual IOReturn getMaxPacketSize(UInt32 * maxSize) const override;
     virtual IOReturn setMaxPacketSize(UInt32 maxSize) override;
 
+    void ixgbeServiceEventSchedule(struct ixgbe_adapter *adapter);
+
 private:
     void getParams();
     bool createMediaTable();
@@ -488,7 +490,6 @@ private:
     void ixgbeResetSubtask(struct ixgbe_adapter *adapter);
 
     void ixgbeServiceTask();
-    void ixgbeServiceEventSchedule(struct ixgbe_adapter *adapter);
     void ixgbeServiceEventComplete(struct ixgbe_adapter *adapter);
 
     int ixgbeWriteMcAddrList(IOEthernetAddress *addrs, UInt32 count);
@@ -544,6 +545,7 @@ private:
     IOTimerEventSource *timerSource;
     IOEthernetInterface *netif;
     IOMemoryMap *baseMap;
+    IOMapper *mapper;
     volatile void *baseAddr;
     
     /* transmitter data */
@@ -614,3 +616,17 @@ private:
     bool enableRSC;
     bool allowUnsupportedSFP;
 };
+
+/*
+ * This is an ugly solution but the only way to call
+ * c++ code from C code.
+ */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void ixgbe_service_event_schedule(void *owner, struct ixgbe_adapter *adapter);
+
+#ifdef __cplusplus
+}
+#endif

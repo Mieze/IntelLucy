@@ -1059,3 +1059,15 @@ void IntelLucy::ixgbeServiceEventComplete(struct ixgbe_adapter *adapter)
     clear_bit(__IXGBE_SERVICE_SCHED, &adapter->state);
 }
 
+/**
+ * ixgbe_service_event_schedule - schedule a service event form C code
+ **/
+
+void ixgbe_service_event_schedule(void *owner, struct ixgbe_adapter *adapter)
+{
+    IntelLucy *ctlr = OSDynamicCast(IntelLucy, (OSObject *)owner);
+
+    if (ctlr) {
+        ctlr->ixgbeServiceEventSchedule(adapter);
+    }
+}

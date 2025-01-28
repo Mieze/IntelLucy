@@ -21,6 +21,70 @@
 
 #include "IntelLucy.hpp"
 
+
+#pragma mark --- Thunderbolt support functions ---
+
+void ixgbe_remove_adapter(struct ixgbe_hw *hw)
+{
+    struct ixgbe_adapter *adapter = (struct ixgbe_adapter *)hw->back;
+
+    if (!hw->hw_addr)
+        return;
+    
+    hw->hw_addr = NULL;
+    
+    if (test_bit(__IXGBE_SERVICE_INITED, &adapter->state))
+        ixgbe_service_event_schedule(adapter->owner, adapter);
+}
+
+u32 ixgbe_check_remove(struct ixgbe_hw *hw, u32 reg)
+{
+    u8 __iomem *reg_addr;
+    u32 value = 0;
+    int i;
+
+    reg_addr = READ_ONCE(hw->hw_addr);
+    
+    if (ixgbe_removed(reg_addr))
+        return IXGBE_FAILED_READ_REG;
+
+    /* Register read of 0xFFFFFFF can indicate the adapter has been removed,
+     * so perform several status register reads to determine if the adapter
+     * has been removed.
+     */
+    for (i = 0; i < IXGBE_FAILED_READ_RETRIES; i++) {
+        value = _OSReadInt32(hw->hw_addr, IXGBE_STATUS);
+
+        if (value != IXGBE_FAILED_READ_REG)
+            break;
+        
+        mdelay(3);
+    }
+
+    if (value == IXGBE_FAILED_READ_REG)
+        ixgbe_remove_adapter(hw);
+    else
+        value = _OSReadInt32(hw->hw_addr, reg);
+
+    return value;
+}
+
+u32 ixgbe_read_reg(struct ixgbe_hw *hw, u32 reg)
+{
+    u8 __iomem *reg_addr = READ_ONCE(hw->hw_addr);
+    u32 value;
+    
+    if (ixgbe_removed(reg_addr))
+        return IXGBE_FAILED_READ_REG;
+
+    value = _OSReadInt32(hw->hw_addr, reg);
+
+    if (unlikely(value == IXGBE_FAILED_READ_REG))
+        value = ixgbe_check_remove(hw, reg);
+
+    return value;
+}
+
 #pragma mark --- MAC filter functions ---
 
 void ixgbe_restore_perm_mac(struct ixgbe_adapter *adapter)

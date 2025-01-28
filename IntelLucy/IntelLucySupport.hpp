@@ -70,6 +70,9 @@ struct tcp_hdr_be {
 
 #define IXGBE_MAX_RX_DESC_POLL 10
 
+void ixgbe_remove_adapter(struct ixgbe_hw *hw);
+u32 ixgbe_check_remove(struct ixgbe_hw *hw, u32 reg);
+
 /* MAC filter support functions*/
 void ixgbe_restore_perm_mac(struct ixgbe_adapter *adapter);
 void ixgbe_mac_set_default_filter(struct ixgbe_adapter *adapter);

@@ -245,6 +245,9 @@ bool IntelLucy::start(IOService *provider)
         IOLog("Failed to open provider.\n");
         goto error_open;
     }
+    mapper = IOMapper::copyMapperForDevice(pciDevice);
+
+    /* Read config parameters from Info.plist. */
     getParams();
 
     if (!initPCIConfigSpace(pciDevice)) {
@@ -1605,7 +1608,7 @@ bool IntelLucy::ixgbeIdentifyChip()
             hw->back = &adapterData;
             hw->hw_addr = (volatile UInt8*)baseAddr;
             adapterData.io_addr = hw->hw_addr;
-            
+            adapterData.owner = (void *)this;
             result = true;
             break;
         }

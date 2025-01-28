@@ -108,6 +108,8 @@ const typeof( ((type *)0)->member ) *__mptr = (ptr);                       \
 
 #define ARRAY_SIZE(x)           (sizeof(x) / sizeof((x)[0]))
 
+#define READ_ONCE(x) (u8 __iomem *)(x)
+
 #define min_t(type,x,y) \
 ({ type __x = (x); type __y = (y); __x < __y ? __x: __y; })
 

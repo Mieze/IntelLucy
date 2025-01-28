@@ -477,7 +477,7 @@ bool IntelLucy::setupDMADescriptors()
     ixgbeSetNumQueues(&adapterData);
 
     /* Create transmitter descriptor array. */
-    txBufDesc = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task, (kIODirectionInOut | kIOMemoryPhysicallyContiguous | kIOMapInhibitCache), kTxDescMemSize, 0xFFFFFFFFFFFFF000ULL);
+    txBufDesc = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task, (kIODirectionInOut | kIOMemoryPhysicallyContiguous | kIOMemoryHostPhysicallyContiguous | kIOMapInhibitCache), kTxDescMemSize, 0xFFFFFFFFFFFFF000ULL);
     
     if (!txBufDesc) {
         IOLog("Couldn't alloc txBufDesc.\n");
@@ -490,7 +490,7 @@ bool IntelLucy::setupDMADescriptors()
     txRing[0].txDescArray = (union ixgbe_adv_tx_desc *)txBufDesc->getBytesNoCopy();
     
     /* I don't know if it's really necessary but the documenation says so and Apple's drivers are also doing it this way. */
-    txDescDmaCmd = IODMACommand::withSpecification(kIODMACommandOutputHost64, 64, 0, IODMACommand::kMapped, 0, 1);
+    txDescDmaCmd = IODMACommand::withSpecification(kIODMACommandOutputHost64, 64, 0, IODMACommand::kMapped, 0, 1, mapper, NULL);
     
     if (!txDescDmaCmd) {
         IOLog("Couldn't alloc txDescDmaCmd.\n");
@@ -529,7 +529,7 @@ bool IntelLucy::setupDMADescriptors()
     }
 
     /* Create receiver descriptor array. */
-    rxBufDesc = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task, (kIODirectionInOut | kIOMemoryPhysicallyContiguous | kIOMapInhibitCache), kRxDescMemSize, 0xFFFFFFFFFFFFF000ULL);
+    rxBufDesc = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task, (kIODirectionInOut | kIOMemoryPhysicallyContiguous | kIOMemoryHostPhysicallyContiguous | kIOMapInhibitCache), kRxDescMemSize, 0xFFFFFFFFFFFFF000ULL);
     
     if (!rxBufDesc) {
         IOLog("Couldn't alloc rxBufDesc.\n");
@@ -543,7 +543,7 @@ bool IntelLucy::setupDMADescriptors()
     rxRing[0].rxDescArray = (union ixgbe_adv_rx_desc *)rxBufDesc->getBytesNoCopy();
     
     /* I don't know if it's really necessary but the documenation says so and Apple's drivers are also doing it this way. */
-    rxDescDmaCmd = IODMACommand::withSpecification(kIODMACommandOutputHost64, 64, 0, IODMACommand::kMapped, 0, 1);
+    rxDescDmaCmd = IODMACommand::withSpecification(kIODMACommandOutputHost64, 64, 0, IODMACommand::kMapped, 0, 1, mapper, NULL);
     
     if (!rxDescDmaCmd) {
         IOLog("Couldn't alloc rxDescDmaCmd.\n");

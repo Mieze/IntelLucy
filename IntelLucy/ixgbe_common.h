@@ -164,6 +164,11 @@ static inline bool ixgbe_removed(void __iomem *addr)
 
 static inline void ixgbe_write_reg(struct ixgbe_hw *hw, u32 reg, u32 value)
 {
+    u8 __iomem *reg_addr = READ_ONCE(hw->hw_addr);
+
+    if (ixgbe_removed(reg_addr))
+        return;
+
     _OSWriteInt32(hw->hw_addr, reg, value);
 }
 #define IXGBE_WRITE_REG(a, reg, value) ixgbe_write_reg((a), (reg), (value))
@@ -176,14 +181,15 @@ static inline void writeq(u64 val, void __iomem *addr)
 
 static inline void ixgbe_write_reg64(struct ixgbe_hw *hw, u32 reg, u64 value)
 {
+    u8 __iomem *reg_addr = READ_ONCE(hw->hw_addr);
+
+    if (ixgbe_removed(reg_addr))
+        return;
+
     _OSWriteInt64(hw->hw_addr, reg, value);
 }
 #define IXGBE_WRITE_REG64(a, reg, value) ixgbe_write_reg64((a), (reg), (value))
 
-static inline u32 ixgbe_read_reg(struct ixgbe_hw *hw, u32 reg)
-{
-    return _OSReadInt32(hw->hw_addr, reg);
-}
 #define IXGBE_READ_REG(a, reg) ixgbe_read_reg((a), (reg))
 
 #if DISABLED_CODE
@@ -217,10 +223,6 @@ static inline void ixgbe_write_reg64(struct ixgbe_hw *hw, u32 reg, u64 value)
 }
 #define IXGBE_WRITE_REG64(a, reg, value) ixgbe_write_reg64((a), (reg), (value))
 
-static inline u32 ixgbe_read_reg(struct ixgbe_hw *hw, u32 reg)
-{
-    return _OSReadInt32(hw->hw_addr, reg);
-}
 #define IXGBE_READ_REG(a, reg) ixgbe_read_reg((a), (reg))
 
 #endif /* DISABLED_CODE */
