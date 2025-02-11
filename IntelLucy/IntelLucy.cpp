@@ -137,9 +137,12 @@ bool IntelLucy::init(OSDictionary *properties)
         rxActiveQueueMask = 0;
         rxBufferPktSize = kRxBufferPktSize2K;
         rxBufArrayMem = NULL;
+        sparePktHead = NULL;
+        sparePktTail = NULL;
         mcAddrList = NULL;
         mcListCount = 0;
-
+        spareNum = 0;
+        
         stateFlags = 0;
         chip = 0;
         powerState = 0;
@@ -1277,12 +1280,31 @@ UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing 
         newPkt = replaceOrCopyPacket(&bufPkt, pktSize, &replaced);
         
         if (!newPkt) {
-            /* Allocation of a new packet failed so that we must leave the original packet in place. */
+            /*
+             * Allocation of a new packet failed. Try to get
+             * a replacement from the list of spare packets.
+             */
+            if (spareNum > 1) {
+                DebugLog("Use spare packet to replace buffer (%d available).\n", spareNum);
+                OSDecrementAtomic(&spareNum);
+
+                newPkt = bufPkt;
+                replaced = true;
+
+                bufPkt = sparePktHead;
+                sparePktHead = mbuf_next(sparePktHead);
+                mbuf_setnext(bufPkt, NULL);
+                goto handle_pkt;
+            }
+            /*
+             * No spare packets available so that we must leave
+             * the original packet in place as a last resort.
+             */
             DebugLog("replaceOrCopyPacket() failed.\n");
             etherStats->dot3RxExtraEntry.resourceErrors++;
             goto error_drop;
         }
-        
+handle_pkt:
         /* If the packet was replaced we have to update the descriptor's buffer address. */
         if (replaced) {
             n = rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1);
@@ -1444,6 +1466,9 @@ void IntelLucy::interruptOccurred(OSObject *client, IOInterruptEventSource *src,
                 netif->flushInputQueue();
             
             etherStats->dot3RxExtraEntry.interrupts++;
+            
+            if (spareNum < kRxNumSpareMbufs)
+                refillSpareBuffers();
         }
         if (eicr & txActiveQueueMask) {
             txCleanRing(&txRing[0]);
@@ -1544,6 +1569,9 @@ void IntelLucy::pollInputPackets(IONetworkInterface *interface, uint32_t maxCoun
         txCleanRing(&txRing[0]);
         
         clear_bit(__POLLING, &stateFlags);
+        
+        if (spareNum < kRxNumSpareMbufs)
+            commandGate->runAction(refillAction);
     }
     
     //DebugLog("pollInputPackets() <===\n");

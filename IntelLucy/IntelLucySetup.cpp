@@ -649,7 +649,6 @@ done:
 
 bool IntelLucy::allocRxBuffers()
 {
-    mbuf_t spareMbuf[kRxNumSpareMbufs];
     mbuf_t m;
     struct ixgbeRxBufferInfo *rm;
     struct ixgbeRxRing *ring;
@@ -701,15 +700,26 @@ bool IntelLucy::allocRxBuffers()
             ring->rxDescArray[i].read.hdr_addr = 0;
         }
     }
-    /* Allocate some spare mbufs and free them in order to increase the buffer pool.
-     * This seems to avoid the replaceOrCopyPacket() errors under heavy load.
+    /*
+     * Allocate some spare mbufs and keep them in a buffer pool, to
+     * have them at hand in case replaceOrCopyPacket() fails
+     * under heavy load.
      */
-    for (i = 0; i < kRxNumSpareMbufs; i++)
-        spareMbuf[i] = allocatePacket(rxBufferPktSize);
-    
+    sparePktHead = sparePktTail = NULL;
+
     for (i = 0; i < kRxNumSpareMbufs; i++) {
-        if (spareMbuf[i])
-            freePacket(spareMbuf[i]);
+        m = allocatePacket(rxBufferPktSize);
+        
+        if (m) {
+            if (sparePktHead) {
+                mbuf_setnext(sparePktTail, m);
+                sparePktTail = m;
+                spareNum++;
+            } else {
+                sparePktHead = sparePktTail = m;
+                spareNum = 1;
+            }
+        }
     }
     result = true;
     
@@ -733,6 +743,32 @@ error_rx_buf:
         rxBufArrayMem = NULL;
     }
     goto done;
+}
+
+void IntelLucy::refillSpareBuffers()
+{
+    mbuf_t m;
+
+    while (spareNum < kRxNumSpareMbufs) {
+        m = allocatePacket(rxBufferPktSize);
+
+        if (!m)
+            break;
+        
+        mbuf_setnext(sparePktTail, m);
+        sparePktTail = m;
+        OSIncrementAtomic(&spareNum);
+    }
+}
+
+IOReturn IntelLucy::refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4)
+{
+    IntelLucy *ethCtlr = OSDynamicCast(IntelLucy, owner);
+    
+    if (ethCtlr) {
+        ethCtlr->refillSpareBuffers();
+    }
+    return kIOReturnSuccess;
 }
 
 void IntelLucy::freeDMADescriptors()
@@ -785,6 +821,11 @@ void IntelLucy::freeDMADescriptors()
         }
         IOFree(rxBufArrayMem, kRxBufMemSize);
         rxBufArrayMem = NULL;
+    }
+    if (sparePktHead) {
+        mbuf_freem(sparePktHead);
+        sparePktHead = sparePktTail = NULL;
+        spareNum = 0;
     }
 }
 

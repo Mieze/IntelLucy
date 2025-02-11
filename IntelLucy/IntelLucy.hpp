@@ -133,7 +133,7 @@ enum {
 
 };
 
-#define kRxNumSpareMbufs 200
+#define kRxNumSpareMbufs 150
 #define kMaxMtu 9216
 #define kMaxPacketSize (kMaxMtu + ETH_HLEN + ETH_FCS_LEN)
 
@@ -425,6 +425,9 @@ private:
     void freeDMADescriptors();
     bool allocTxBufferInfo();
     bool allocRxBuffers();
+    void refillSpareBuffers();
+    
+    static IOReturn refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
 
     static IOReturn setPowerStateWakeAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
     static IOReturn setPowerStateSleepAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
@@ -433,7 +436,6 @@ private:
     void initPCIPowerManagment(IOPCIDevice *provider, const struct e1000_info *ei);
     inline void ixgbeEnablePCIDevice(IOPCIDevice *provider);
     void interruptOccurred(OSObject *client, IOInterruptEventSource *src, int count);
-    
     
     void txCleanRing(struct ixgbeTxRing *ring);
     UInt32 rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing *ring,
@@ -566,11 +568,14 @@ private:
     IODMACommand *rxDescDmaCmd;
     IOBufferMemoryDescriptor *rxBufDesc;
     IOMbufNaturalMemoryCursor *rxMbufCursor;
+    mbuf_t sparePktHead;
+    mbuf_t sparePktTail;
     IONetworkPacketPollingParameters pollParams;
     IOEthernetAddress *mcAddrList;
     UInt32 mcListCount;
     UInt32 rxActiveQueueMask;
     UInt32 rxBufferPktSize;
+    SInt32 spareNum;
 
     /* power management data */
     unsigned long powerState;
