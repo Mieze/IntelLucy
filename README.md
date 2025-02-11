@@ -37,7 +37,22 @@ https://www.insanelymac.com/forum/topic/359009-intellucy-for-the-intel-x500-fami
 - X540-TA1: working
 - X540-TA2: both ports working
 - X550-T1: working
- 
+
+**A word on AppleVTD**
+
+Although IntelLucy supports AppleVTD, there is no guarantee that your mainboard also does. In case you are unsure if you need AppleVTD, leave it disabled and you'll be on the safe side. When you enable AppleVTD and experience one of the following issues, it's most likely that your board doesn't support AppleVTD:
+
+- Kernel Panics.
+- The machine suddenly reboots, freezes and/or the fans speed up.
+- No network connection at all.
+- The link status keeps going up and down.
+- Very low connection throughput.
+
+**What can you do to resolve the issue?**
+- Check your board's DMAR table and see if there are any reserved memory regions in it.
+- If there are reserved memory regions, you might want to patch your DMAR removing these regions. If it resolves the issue, congratulations! Be careful, because the board's manufacturer did add these regions with intention. Removing them may produce unexpected results too, like the problems described above.
+- Otherwise you have to keep AppleVTD disabled, because it is incompatible with your board and there is no way to make it compatible.
+
 **Known Issues**
 - Please keep in mind that X520 adapters don't support 10GBase-T SFP+ modules because the module's power requirement (approximately 3W) exceeds the adapter's limits. Installing a 10GBase-T SFP+ module in a X520 adapter anyway may damage the device.
 - Manual medium selection is working on X540 and X550 since version 1.0.4.
