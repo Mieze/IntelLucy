@@ -623,13 +623,15 @@ bool IntelLucy::allocTxBufferInfo()
     bool result = false;
 
     /* Alloc ixgbeTxBufferInfo array. */
-    txBufArrayMem = IOMallocZero(kTxBufArraySize);
+    txBufArrayMem = IOMalloc(kTxBufArraySize);
     m = (struct ixgbeTxBufferInfo *)txBufArrayMem;
     
     if (!txBufArrayMem) {
         IOLog("Couldn't alloc transmit buffer array.\n");
         goto done;
     }
+    memset(txBufArrayMem, 0, kTxBufArraySize);
+    
     for (i = 0; i < kNumTxRings; i++) {
         txRing[i].txBufArray = m;
         m += kTxBufArraySize;
@@ -658,13 +660,15 @@ bool IntelLucy::allocRxBuffers()
     bool result = false;
     
     /* Alloc ixgbeRxBufferInfo array. */
-    rxBufArrayMem = IOMallocZero(kRxBufMemSize);
+    rxBufArrayMem = IOMalloc(kRxBufMemSize);
     rm = (struct ixgbeRxBufferInfo *)rxBufArrayMem;
     
     if (!rxBufArrayMem) {
         IOLog("Couldn't alloc receive buffer array.\n");
         goto done;
     }
+    memset(rxBufArrayMem, 0, kRxBufMemSize);
+    
     for (i = 0; i < kNumRxRings; i++) {
         rxRing[i].rxBufArray = rm;
         rm += kRxBufArraySize;

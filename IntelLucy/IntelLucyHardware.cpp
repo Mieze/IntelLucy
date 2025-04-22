@@ -679,6 +679,7 @@ err_sw_init:
 bool IntelLucy::ixgbeSwInit(struct ixgbe_adapter *adapter, const struct ixgbe_info *ii)
 {
     struct ixgbe_hw *hw = &adapter->hw;
+    vm_size_t msize;
     u32 fwsm;
     bool result = false;
 
@@ -712,12 +713,14 @@ bool IntelLucy::ixgbeSwInit(struct ixgbe_adapter *adapter, const struct ixgbe_in
     adapter->fdir_pballoc = IXGBE_FDIR_PBALLOC_NONE;
     
     /* Alloc memory for MAC address table. */
-    adapter->mac_table = (struct ixgbe_mac_addr*)IOMallocZero(
-        hw->mac.num_rar_entries * sizeof(struct ixgbe_mac_addr));
+    msize = hw->mac.num_rar_entries * sizeof(struct ixgbe_mac_addr);
+    adapter->mac_table = (struct ixgbe_mac_addr*)IOMalloc(msize);
     
     if (!adapter->mac_table)
         goto done;
     
+    memset(adapter->mac_table, 0, msize);
+
     /* Init mac table with default values. */
     ixgbe_init_mac_table(adapter);
     
