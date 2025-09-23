@@ -37,6 +37,7 @@ https://www.insanelymac.com/forum/topic/359009-intellucy-for-the-intel-x500-fami
 - X540-TA1: working
 - X540-TA2: both ports working
 - X550-T1: working
+- X550-T2: both ports working
 
 **A word on AppleVTD**
 
