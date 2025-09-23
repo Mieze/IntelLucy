@@ -787,6 +787,8 @@ bool IntelLucy::ixgbeSwInit(struct ixgbe_adapter *adapter, const struct ixgbe_in
     hw->fc.send_xon = true;
     hw->fc.disable_fc_autoneg = ixgbe_device_supports_autoneg_fc(hw);
 
+    DebugLog("Flow control autoneg%s supported.\n", hw->fc.disable_fc_autoneg ? " not" : "");
+
     /* Setup itr according to config parameters. */
     if (rxThrottleTime > 0) {
         adapter->rx_itr_setting = (rxThrottleTime << 2) & IXGBE_MAX_EITR;
@@ -889,9 +891,10 @@ void IntelLucy::ixgbeUpComplete(struct ixgbe_adapter *adapter)
     if (hw->mac.ops.enable_tx_laser)
         hw->mac.ops.enable_tx_laser(hw);
 
-    if (hw->phy.ops.set_phy_power)
+    if (hw->phy.ops.set_phy_power) {
         hw->phy.ops.set_phy_power(hw, true);
-
+        DebugLog("Enable PHY power of en%u.\n", netif->getUnitNumber());
+    }
     clear_bit(__IXGBE_DOWN, &adapter->state);
 
     if (ixgbe_is_sfp(hw)) {
@@ -900,7 +903,8 @@ void IntelLucy::ixgbeUpComplete(struct ixgbe_adapter *adapter)
         err = ixgbeNonSfpLinkConfig(hw);
 
         if (err)
-            IOLog("link_config() failed %d.\n", err);
+            IOLog("link_config() failed %d for en%u.\n",
+                  err, netif->getUnitNumber());
     }
 
     /* clear any pending interrupts, may auto mask */
@@ -970,13 +974,26 @@ SInt32 IntelLucy::ixgbeNonSfpLinkConfig(struct ixgbe_hw *hw)
             if (err)
                 goto done;
             
+            /* remove NBASE-T speeds from default autonegotiation
+             * to accommodate broken network switches in the field
+             * which cannot cope with advertised NBASE-T speeds
+             */
+            speed &= ~(IXGBE_LINK_SPEED_5GB_FULL |
+                   IXGBE_LINK_SPEED_2_5GB_FULL);
             fc = ixgbe_fc_none;
+            
+            DebugLog("Advertise speed: 0x%0x for en%u.\n", speed,
+                    netif->getUnitNumber());
         }
     } else {
         medium2Advertise(medium, &speed, &fc);
     }
-    hw->phy.autoneg_advertised = speed;
+    if (speed & IXGBE_LINK_SPEED_10GB_FULL)
+        speed |= IXGBE_LINK_SPEED_1GB_FULL;
 
+    hw->phy.autoneg_advertised = speed;
+    hw->fc.requested_mode = (enum ixgbe_fc_mode)fc;
+    
     if (hw->mac.ops.setup_link)
         err = hw->mac.ops.setup_link(hw, speed, link_up);
 
@@ -1062,8 +1079,11 @@ void IntelLucy::ixgbeDisable(struct ixgbe_adapter *adapter)
         IXGBE_WRITE_REG(hw, IXGBE_WUC, 0);
         IXGBE_WRITE_REG(hw, IXGBE_WUFC, 0);
     }
-    if (hw->phy.ops.set_phy_power && (wufc == 0))
+    if (hw->phy.ops.set_phy_power && (wufc == 0) &&
+        (hw->mac.type != ixgbe_mac_X550)) {
         hw->phy.ops.set_phy_power(hw, false);
+        DebugLog("Disable PHY power of en%u.\n", netif->getUnitNumber());
+    }
 
     ixgbe_release_hw_control(adapter);
 }
@@ -1216,7 +1236,7 @@ mac_reset_top:
 
     if (ctrl & IXGBE_CTRL_RST_MASK) {
         status = IXGBE_ERR_RESET_FAILED;
-        DebugLog("Reset polling failed to complete.\n");
+        DebugLog("Reset polling failed to complete for en%u.\n", netif->getUnitNumber());
     }
 
     msleep(50);
@@ -1276,7 +1296,7 @@ s32 IntelLucy::ixgbeResetHwX540(struct ixgbe_hw *hw)
 mac_reset_top:
     status = hw->mac.ops.acquire_swfw_sync(hw, swfw_mask);
     if (status) {
-        DebugLog("semaphore failed with %d.", status);
+        DebugLog("semaphore failed with %d for en%u.", status, netif->getUnitNumber());
         return IXGBE_ERR_SWFW_SYNC;
     }
 
@@ -1297,7 +1317,7 @@ mac_reset_top:
 
     if (ctrl & IXGBE_CTRL_RST_MASK) {
         status = IXGBE_ERR_RESET_FAILED;
-        DebugLog("Reset polling failed to complete.\n");
+        DebugLog("Reset polling failed to complete for en%u.\n", netif->getUnitNumber());
     }
     msleep(100);
 
@@ -1431,7 +1451,7 @@ mac_reset_top:
 
     if (ctrl & IXGBE_CTRL_RST_MASK) {
         status = IXGBE_ERR_RESET_FAILED;
-        DebugLog("Reset polling failed to complete.\n");
+        DebugLog("Reset polling failed to complete for en%u.\n", netif->getUnitNumber());
     }
 
     msleep(50);
@@ -1582,6 +1602,7 @@ SInt32 IntelLucy::ixgbeInitHwGeneric(struct ixgbe_hw *hw)
 void IntelLucy::ixgbeReset(struct ixgbe_adapter *adapter)
 {
     struct ixgbe_hw *hw = &adapter->hw;
+    UInt64 t;
     int err;
 
     if (ixgbe_removed(hw->hw_addr))
@@ -1605,16 +1626,16 @@ void IntelLucy::ixgbeReset(struct ixgbe_adapter *adapter)
             break;
             
         case IXGBE_ERR_PRIMARY_REQUESTS_PENDING:
-            e_dev_err("primary disable timed out\n");
+            DebugLog("Primary disable timed out for en%u.\n", netif->getUnitNumber());
             break;
             
         case IXGBE_ERR_EEPROM_VERSION:
             /* We are running on a pre-production device, log a warning */
-            IOLog("Warning: EEPROM version error.");
+            IOLog("Warning: EEPROM version error for en%u.\n", netif->getUnitNumber());
             break;
             
         default:
-            IOLog("Hardware Error: %d\n", err);
+            IOLog("Hardware Error: %d for en%u.\n", err, netif->getUnitNumber());
             break;
     }
 
@@ -1636,10 +1657,22 @@ void IntelLucy::ixgbeReset(struct ixgbe_adapter *adapter)
         ixgbe_ptp_reset(adapter);
 */
     if (hw->phy.ops.set_phy_power) {
-        if (!test_bit(__ENABLED, &stateFlags) && !adapter->wol)
+        clock_get_uptime(&t);
+
+        if (!test_bit(__ENABLED, &stateFlags) && !adapter->wol) {
             hw->phy.ops.set_phy_power(hw, false);
-        else
+            DebugLog("Disable PHY power of en%u.\n", netif->getUnitNumber());
+        } else if (test_bit(__ENABLED, &stateFlags) && (t < (linkUptime + linkStableTresh))) {
+            absolutetime_to_nanoseconds(t - linkUptime, &t);
+            hw->phy.ops.set_phy_power(hw, false);
+            DebugLog("Disable PHY power of en%u because the link was lost after only %llul ms.\n", netif->getUnitNumber(), t/10000000UL);
+            IOSleep(kPhyRecoverTime);
             hw->phy.ops.set_phy_power(hw, true);
+            DebugLog("Enable PHY power of en%u.\n", netif->getUnitNumber());
+        } else {
+            hw->phy.ops.set_phy_power(hw, true);
+            DebugLog("Enable PHY power of en%u.\n", netif->getUnitNumber());
+        }
     }
 }
 
@@ -1774,13 +1807,15 @@ void IntelLucy::ixgbeConfigureMsi(struct ixgbe_adapter *adapter)
     ixgbe_set_ivar(adapter, 1, 0, 1);
 
     DebugLog(
-             "MSI interrupt IVAR setup done. rxITR: %uµs txITR: %uµs\n",
+             "MSI interrupt IVAR setup done. rxITR: %uµs txITR: %uµs for en%u.\n",
              rxRing[0].vector.itr >> 2,
-             txRing[0].vector.itr >> 2
+             txRing[0].vector.itr >> 2,
+             netif->getUnitNumber()
              );
-    DebugLog("rxVector: %hu txVector: %hu\n",
-             rxRing[0].vector.vIndex, txRing[0].vector.vIndex);
-
+    DebugLog("rxVector: %hu txVector: %hu for en%u.\n",
+             rxRing[0].vector.vIndex,
+             txRing[0].vector.vIndex,
+             netif->getUnitNumber());
 }
 
 
@@ -1888,7 +1923,7 @@ int IntelLucy::ixgbeHpbthresh(struct ixgbe_adapter *adapter, int pb)
     if (marker < 0) {
         DebugLog("Packet Buffer(%i) can not provide enough"
                 "headroom to support flow control."
-                "Decrease MTU or number of traffic classes\n", pb);
+                "Decrease MTU or number of traffic classes for en%u.\n", pb, netif->getUnitNumber());
         marker = tc + 1;
     }
 

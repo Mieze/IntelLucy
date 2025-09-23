@@ -137,7 +137,7 @@ enum {
 #define kMaxMtu 9216
 #define kMaxPacketSize (kMaxMtu + ETH_HLEN + ETH_FCS_LEN)
 
-/* statitics timer period in ms. */
+/* Timer values */
 #define kTimeout10us   10U
 #define kTimeout100ms   100U
 #define kTimeout1000ms  1000U
@@ -145,6 +145,8 @@ enum {
 #define kTimeout2Gns  2000000000UL
 #define kTimeout4Gns  4000000000UL
 #define kTimespan4ms  4000000UL
+#define kPhyRecoverTime 5000U   /* ms */
+#define kLinkStableTime  3000000000UL
 
 /* Treshhold value to wake a stalled queue */
 #define kTxQueueWakeTreshhold (2 + kMaxSegs * 2)
@@ -589,6 +591,17 @@ private:
     UInt64 timeoutCheck;
     UInt64 hangTimeout;
     UInt64 itrUpdatePeriod;
+    
+    /* Time stamp of the last link up event. */
+    UInt64 linkUptime;
+    
+    /*
+     * If the link is lost within linkStableTresh
+     * seconds after a link up event, an unstable
+     * link is assumed and the PHY will be power
+     * cycled to recover from that situation.
+     */
+    UInt64 linkStableTresh;
     
     UInt32 chip;
     struct ixgbe_adapter adapterData;

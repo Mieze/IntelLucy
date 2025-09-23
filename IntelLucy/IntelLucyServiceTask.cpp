@@ -171,7 +171,7 @@ void IntelLucy::ixgbeTxTimeoutReset(struct ixgbe_adapter *adapter)
     /* Do the reset outside of interrupt context */
     if (!test_bit(__IXGBE_DOWN, &adapter->state)) {
         set_bit(__IXGBE_RESET_REQUESTED, &adapter->state);
-        IOLog("Initiating reset due to tx timeout.\n");
+        IOLog("Initiating reset due to tx timeout of en%u.\n", netif->getUnitNumber());
         ixgbeServiceEventSchedule(adapter);
     }
 }
@@ -445,7 +445,7 @@ void IntelLucy::ixgbeSfpDetectionSubtask(struct ixgbe_adapter *adapter)
         goto sfp_out;
 
     adapter->flags |= IXGBE_FLAG_NEED_LINK_CONFIG;
-    DebugLog("detected SFP+: %d\n", hw->phy.sfp_type);
+    DebugLog("detected SFP+: %d for en%u.\n", hw->phy.sfp_type, netif->getUnitNumber());
 
 sfp_out:
     clear_bit(__IXGBE_IN_SFP_INIT, &adapter->state);
@@ -459,7 +459,7 @@ sfp_out:
     updateSelectedMedium();
     
     if (err == IXGBE_ERR_SFP_NOT_SUPPORTED)
-        IOLog("Failed to initialize because an unsupported SFP+ module type was detected.\n");
+        IOLog("Failed to initialize because an unsupported SFP+ module type was detected for en%u.\n", netif->getUnitNumber());
 }
 
 /**
@@ -516,7 +516,8 @@ void IntelLucy::ixgbePhyInterruptSubtask(struct ixgbe_adapter *adapter)
     if (status != IXGBE_ERR_OVERTEMP)
         return;
 
-    IOLog("%s\n", ixgbe_overheat_msg);
+    IOLog("%s for en%u.\n", ixgbe_overheat_msg,
+          netif->getUnitNumber());
 }
 
 void IntelLucy::ixgbeResetSubtask(struct ixgbe_adapter *adapter)
@@ -532,7 +533,7 @@ void IntelLucy::ixgbeResetSubtask(struct ixgbe_adapter *adapter)
     }
 
     //ixgbe_dump(adapter);
-    IOLog("Reset adapter.\n");
+    IOLog("Reset adapter for en%u.\n", netif->getUnitNumber());
     adapter->tx_timeout_count++;
 
     ixgbeReinit(adapter);
@@ -576,7 +577,7 @@ void IntelLucy::ixgbeWatchdogLinkIsDown(struct ixgbe_adapter *adapter)
     
     IOLog("Link down on en%u\n", netif->getUnitNumber());
     
-    DebugLog("Initiating reset to clear Tx work after link loss.\n");
+    DebugLog("Initiating reset to clear Tx work after link loss for en%u.\n", netif->getUnitNumber());
     set_bit(__IXGBE_RESET_REQUESTED, &adapter->state);
 }
 
@@ -594,14 +595,15 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
     const char *speed_str;
     const char *flow_str;
     const char *eee_str;
-    bool flow_rx, flow_tx;
+    enum ixgbe_fc_mode fc;
+    UInt16 data;
     
     /* only continue if link was previously down */
     if (test_bit(__LINK_UP, &stateFlags))
         return;
     
     adapter->flags2 &= ~IXGBE_FLAG2_SEARCH_FOR_SFP;
-    
+/*
     switch (hw->mac.type) {
         case ixgbe_mac_82598EB: {
             u32 frctl = IXGBE_READ_REG(hw, IXGBE_FCTRL);
@@ -627,13 +629,17 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
             flow_tx = false;
             flow_rx = false;
             break;
-    }
+    }*/
+    hw->mac.ops.fc_enable(hw);
+    fc = hw->fc.current_mode;
     
+    clock_get_uptime(&linkUptime);
+/*
     clock_get_uptime((uint64_t *)&adapter->last_rx_ptp_check);
-    /*
+
      if (test_bit(__IXGBE_PTP_RUNNING, &adapter->state))
      ixgbe_ptp_start_cyclecounter(adapter);
-     */
+*/
     bzero(&pollParams, sizeof(IONetworkPacketPollingParameters));
     pollParams.lowThresholdPackets = 10;
     pollParams.highThresholdPackets = 40;
@@ -650,37 +656,37 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
                         case ixgbe_sfp_type_da_cu:
                         case ixgbe_sfp_type_da_cu_core0:
                         case ixgbe_sfp_type_da_cu_core1:
-                            if (flow_tx || flow_rx) {
-                                midx = MIDX_10GB_DA_FC;
-                            } else {
+                            if (fc == ixgbe_fc_none) {
                                 midx = MIDX_10GB_DA;
+                            } else {
+                                midx = MIDX_10GB_DA_FC;
                             }
                             break;
                             
                         case ixgbe_sfp_type_sr:
                         case ixgbe_sfp_type_srlr_core0:
                         case ixgbe_sfp_type_srlr_core1:
-                            if (flow_tx || flow_rx) {
-                                midx = MIDX_10GB_SR_FC;
-                            } else {
+                            if (fc == ixgbe_fc_none) {
                                 midx = MIDX_10GB_SR;
+                            } else {
+                                midx = MIDX_10GB_SR_FC;
                             }
                             break;
                             
                         case ixgbe_sfp_type_lr:
-                            if (flow_tx || flow_rx) {
-                                midx = MIDX_10GB_LR_FC;
-                            } else {
+                            if (fc == ixgbe_fc_none) {
                                 midx = MIDX_10GB_LR;
+                            } else {
+                                midx = MIDX_10GB_LR_FC;
                             }
                             break;
                             
                         case ixgbe_sfp_type_da_act_lmt_core0:
                         case ixgbe_sfp_type_da_act_lmt_core1:
-                            if (flow_tx || flow_rx) {
-                                midx = MIDX_10GB_DAL_FC;
-                            } else {
+                            if (fc == ixgbe_fc_none) {
                                 midx = MIDX_10GB_DAL;
+                            } else {
+                                midx = MIDX_10GB_DAL_FC;
                             }
                             break;
 
@@ -692,10 +698,10 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
                     break;
                     
                 case ixgbe_media_type_copper:
-                    if (flow_tx || flow_rx) {
-                        midx = MIDX_10GBFC;
-                    } else {
+                    if (fc == ixgbe_fc_none) {
                         midx = MIDX_10GB;
+                    } else {
+                        midx = MIDX_10GBFC;
                     }
                     break;
                     
@@ -711,10 +717,10 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
             
             
         case IXGBE_LINK_SPEED_5GB_FULL:
-            if (flow_tx || flow_rx) {
-                midx = MIDX_5000FC;
-            } else {
+            if (fc == ixgbe_fc_none) {
                 midx = MIDX_5000;
+            } else {
+                midx = MIDX_5000FC;
             }
             speed_str = "5 Gbps";
             
@@ -722,10 +728,10 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
             break;
             
         case IXGBE_LINK_SPEED_2_5GB_FULL:
-            if (flow_tx || flow_rx) {
-                midx = MIDX_2500FC;
-            } else {
+            if (fc == ixgbe_fc_none) {
                 midx = MIDX_2500;
+            } else {
+                midx = MIDX_2500FC;
             }
             speed_str = "2.5 Gbps";
             
@@ -739,38 +745,38 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
                     switch (adapter->hw.phy.sfp_type) {
                         case ixgbe_sfp_type_1g_cu_core0:
                         case ixgbe_sfp_type_1g_cu_core1:
-                            if (flow_tx || flow_rx) {
-                                midx = MIDX_1000FC;
-                            } else {
+                            if (fc == ixgbe_fc_none) {
                                 midx = MIDX_1000;
+                            } else {
+                                midx = MIDX_1000FC;
                             }
                             break;
                             
                         case ixgbe_sfp_type_sr:
                         case ixgbe_sfp_type_1g_sx_core0:
                         case ixgbe_sfp_type_1g_sx_core1:
-                            if (flow_tx || flow_rx) {
-                                midx = MIDX_1GB_SX_FC;
-                            } else {
+                            if (fc == ixgbe_fc_none) {
                                 midx = MIDX_1GB_SX;
+                            } else {
+                                midx = MIDX_1GB_SX_FC;
                             }
                             break;
                             
                         case ixgbe_sfp_type_lr:
                         case ixgbe_sfp_type_1g_lx_core0:
                         case ixgbe_sfp_type_1g_lx_core1:
-                            if (flow_tx || flow_rx) {
-                                midx = MIDX_1GB_LX_FC;
-                            } else {
+                            if (fc == ixgbe_fc_none) {
                                 midx = MIDX_1GB_LX;
+                            } else {
+                                midx = MIDX_1GB_LX_FC;
                             }
                             break;
 
                         default:
-                            if (flow_tx || flow_rx) {
-                                midx = MIDX_1GB_SX_FC;
-                            } else {
+                            if (fc == ixgbe_fc_none) {
                                 midx = MIDX_1GB_SX;
+                            } else {
+                                midx = MIDX_1GB_SX_FC;
                             }
                             break;
                     }
@@ -778,10 +784,10 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
                     break;
                     
                 case ixgbe_media_type_copper:
-                    if (flow_tx || flow_rx) {
-                        midx = MIDX_1000FC;
-                    } else {
+                    if (fc == ixgbe_fc_none) {
                         midx = MIDX_1000;
+                    } else {
+                        midx = MIDX_1000FC;
                     }
                     break;
                     
@@ -794,10 +800,10 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
             break;
             
         case IXGBE_LINK_SPEED_100_FULL:
-            if (flow_tx || flow_rx) {
-                midx = MIDX_100FC;
-            } else {
+            if (fc == ixgbe_fc_none) {
                 midx = MIDX_100;
+            } else {
+                midx = MIDX_100FC;
             }
             speed_str = "100 Mbps";
             break;
@@ -815,15 +821,23 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
     netif->setPacketPollingParameters(&pollParams, 0);
     DebugLog("pollIntervalTime: %lluµs\n", (pollParams.pollIntervalTime / 1000));
     
-    if (flow_rx && flow_tx)
-        flow_str = flowControlNames[kFlowControlTypeRxTx];
-    else if (flow_rx)
-        flow_str = flowControlNames[kFlowControlTypeRx];
-    else if (flow_tx)
-        flow_str = flowControlNames[kFlowControlTypeTx];
-    else
-        flow_str = flowControlNames[kFlowControlTypeNone];
-    
+    switch (fc) {
+        case ixgbe_fc_rx_pause:
+            flow_str = flowControlNames[kFlowControlTypeRx];
+            break;
+            
+        case ixgbe_fc_tx_pause:
+            flow_str = flowControlNames[kFlowControlTypeTx];
+            break;
+            
+        case ixgbe_fc_full:
+            flow_str = flowControlNames[kFlowControlTypeRxTx];
+            break;
+            
+        default:
+            flow_str = flowControlNames[kFlowControlTypeNone];
+            break;
+    }
     eee_str = eeeNames[kEEETypeNo];
     
     IOLog("Link up on en%u, %s, full-duplex%s%s\n", netif->getUnitNumber(), speed_str, flow_str, eee_str);
@@ -842,8 +856,34 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
         ixgbe_regdump(hw, reginfo);
     }
 #endif /* DEBUG */
+    
+#ifdef DEBUG
     DebugLog("EIMS: 0x%0x IVAR[0]: 0x%0x\n", (unsigned int)IXGBE_READ_REG(hw, IXGBE_EIMS), (unsigned int)IXGBE_READ_REG(hw, IXGBE_IVAR(0)));
     DebugLog("rxActiveQueueMask: 0x%0x txActiveQueueMask[0]: 0x%0x\n", rxActiveQueueMask, txActiveQueueMask);
+    DebugLog("Flow control was%s autonegged for en%u.\n", hw->fc.fc_was_autonegged ? "" : " not", netif->getUnitNumber());
+    DebugLog("FCCFG: 0x%0x MFLCN: 0x%0x\n", (unsigned int)IXGBE_READ_REG(hw, IXGBE_FCCFG), (unsigned int)IXGBE_READ_REG(hw, IXGBE_MFLCN));
+    
+    if (hw->phy.type == ixgbe_phy_aq) {
+        hw->phy.ops.read_reg(hw, MDIO_PMA_10GBR_FSRT_CSR, MDIO_MMD_PMAPMD, &data);
+        DebugLog("Fast Retrain Status and Control of en%u: 0x%0x.\n",
+                 netif->getUnitNumber(), data);
+        hw->phy.ops.read_reg(hw, MDIO_AN_10GBT_CTRL, MDIO_MMD_AN, &data);
+        DebugLog("AN 10GBASE-T Control of en%u: 0x%0x.\n",
+                 netif->getUnitNumber(), data);
+        hw->phy.ops.read_reg(hw, MDIO_AN_10GBT_STAT, MDIO_MMD_AN, &data);
+        DebugLog("AN 10GBASE-T Status of en%u: 0x%0x.\n",
+                 netif->getUnitNumber(), data);
+        hw->phy.ops.read_reg(hw, MDIO_AN_LPA, MDIO_MMD_AN, &data);
+        DebugLog("AN Link Partner Base Ability of en%u: 0x%0x.\n",
+                 netif->getUnitNumber(), data);
+        hw->phy.ops.read_reg(hw, MDIO_AN_RLPS1, MDIO_MMD_AN, &data);
+        DebugLog("AN Receive Link Partner Status 1 of en%u: 0x%0x.\n",
+                 netif->getUnitNumber(), data);
+        hw->phy.ops.read_reg(hw, MDIO_AN_RLPS4, MDIO_MMD_AN, &data);
+        DebugLog("AN Receive Link Partner Status 4 of en%u: 0x%0x.\n",
+                 netif->getUnitNumber(), data);
+    }
+#endif /* DEBUG */
 }
 
 /**
@@ -873,6 +913,7 @@ void IntelLucy::ixgbeWatchdogUpdateLink(struct ixgbe_adapter *adapter)
         pfc_en |= !!(adapter->ixgbe_ieee_pfc->pfc_en);
 
     if (link_up && !((adapter->flags & IXGBE_FLAG_DCB_ENABLED) && pfc_en)) {
+        DebugLog("Configure flow control for en%u.\n", netif->getUnitNumber());
         hw->mac.ops.fc_enable(hw);
         //ixgbe_set_rx_drop_en(adapter);
     }
@@ -910,10 +951,15 @@ void IntelLucy::ixgbeConfigLink(const IONetworkMedium *medium)
     } else {
         medium2Advertise(medium, &speed, &fc);
     }
+    if (((hw->mac.type == ixgbe_mac_X540) ||
+         (hw->mac.type == ixgbe_mac_X550)) &&
+        (speed & IXGBE_LINK_SPEED_10GB_FULL)) {
+        speed |= IXGBE_LINK_SPEED_1GB_FULL;
+    }
     hw->phy.autoneg_advertised = speed;
-    
-    if (adapter->link_up && (speed == adapter->link_speed))
-        goto config_fc;
+    hw->fc.requested_mode = (enum ixgbe_fc_mode)fc;
+
+    DebugLog("Flow control autoneg %s.\n", hw->fc.disable_fc_autoneg ? "disabled" : "enabled");
 
     /* This sets the link speed and restarts auto-neg. */
     while (test_and_set_bit(__IXGBE_IN_SFP_INIT, &adapter->state))
@@ -927,16 +973,8 @@ void IntelLucy::ixgbeConfigLink(const IONetworkMedium *medium)
     clear_bit(__IXGBE_IN_SFP_INIT, &adapter->state);
 
     if (err) {
-        IOLog("Failed to set up link: %d.\n", err);
+        IOLog("Failed to set up link: %d for en%u.\n", err, netif->getUnitNumber());
         goto done;
-    }
-    
-config_fc:
-    if (autoneg) {
-        hw->mac.ops.fc_autoneg(hw);
-    } else {
-        hw->fc.requested_mode = (enum ixgbe_fc_mode)fc;
-        hw->mac.ops.setup_fc(hw);
     }
     adapter->flags |= IXGBE_FLAG_NEED_LINK_UPDATE;
     clock_get_uptime((uint64_t *)&adapter->link_check_timeout);
@@ -972,7 +1010,7 @@ void IntelLucy::ixgbeWatchdogFlushTx(struct ixgbe_adapter *adapter)
              * to get done, so reset controller to flush Tx.
              * (Do the reset outside of interrupt context).
              */
-            DebugLog("Initiating reset to clear Tx work after link loss.\n");
+            DebugLog("Initiating reset to clear Tx work after link loss for en%u.\n", netif->getUnitNumber());
             set_bit(__IXGBE_RESET_REQUESTED, &adapter->state);
         }
     }
@@ -1044,7 +1082,7 @@ done:
 
 void IntelLucy::ixgbeServiceEventSchedule(struct ixgbe_adapter *adapter)
 {
-    DebugLog("ixgbeServiceEventSchedule\n");
+    DebugLog("ixgbeServiceEventSchedule for en%u.\n", netif->getUnitNumber());
 
     if (!test_bit(__IXGBE_DOWN, &adapter->state) &&
         !test_bit(__IXGBE_REMOVING, &adapter->state) &&

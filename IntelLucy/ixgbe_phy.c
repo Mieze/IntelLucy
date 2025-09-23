@@ -315,7 +315,7 @@ s32 ixgbe_identify_phy_generic(struct ixgbe_hw *hw)
     if (hw->phy.mdio.prtad == MDIO_PRTAD_NONE)
         hw->phy.mdio.prtad = 0;
     
-    DebugLog("prtad: %d, mmds: 0x%0x, type: 0x%0x\n", hw->phy.mdio.prtad, hw->phy.mdio.mmds, hw->phy.type);
+    DebugLog("prtad: %d, mmds: 0x%0x, type: 0x%0x id: 0x%0x rev: 0x%0x\n", hw->phy.mdio.prtad, hw->phy.mdio.mmds, hw->phy.type, hw->phy.id, hw->phy.revision);
 
 	return status;
 }
@@ -383,8 +383,7 @@ static enum ixgbe_phy_type ixgbe_get_phy_type_from_id(u32 phy_id)
 	case TN1010_PHY_ID:
 		phy_type = ixgbe_phy_tn;
 		break;
-	case X550_PHY_ID2:
-	case X550_PHY_ID3:
+    case X550_PHY_ID:
 	case X540_PHY_ID:
 		phy_type = ixgbe_phy_aq;
 		break;
@@ -1138,6 +1137,7 @@ s32 ixgbe_setup_phy_link_generic(struct ixgbe_hw *hw)
 	    (speed & IXGBE_LINK_SPEED_10GB_FULL))
 		autoneg_reg |= MDIO_AN_10GBT_CTRL_ADV10G;
 
+    DebugLog("Auto-Negotiation 10GBASE-T Control: 0x%0x.\n", autoneg_reg);
 	hw->phy.ops.write_reg(hw, MDIO_AN_10GBT_CTRL, MDIO_MMD_AN, autoneg_reg);
 
 	hw->phy.ops.read_reg(hw, IXGBE_MII_AUTONEG_VENDOR_PROVISION_1_REG,
@@ -1164,6 +1164,7 @@ s32 ixgbe_setup_phy_link_generic(struct ixgbe_hw *hw)
 	    (speed & IXGBE_LINK_SPEED_1GB_FULL))
 		autoneg_reg |= IXGBE_MII_1GBASE_T_ADVERTISE;
 
+    DebugLog("Auto-Negotiation Vendor Provisioning 1: 0x%0x.\n", autoneg_reg);
 	hw->phy.ops.write_reg(hw, IXGBE_MII_AUTONEG_VENDOR_PROVISION_1_REG,
 			      MDIO_MMD_AN, autoneg_reg);
 
@@ -1175,6 +1176,7 @@ s32 ixgbe_setup_phy_link_generic(struct ixgbe_hw *hw)
 	    (speed & IXGBE_LINK_SPEED_100_FULL))
 		autoneg_reg |= ADVERTISE_100FULL;
 
+    DebugLog("Auto-Negotiation Advertisement Register: 0x%0x.\n", autoneg_reg);
 	hw->phy.ops.write_reg(hw, MDIO_AN_ADVERTISE, MDIO_MMD_AN, autoneg_reg);
 
 	/* Blocked by MNG FW so don't reset PHY */

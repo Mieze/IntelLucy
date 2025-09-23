@@ -1407,7 +1407,8 @@ struct ixgbe_nvm_version {
 #define TN1010_PHY_ID    0x00A19410
 #define TNX_FW_REV       0xB
 #define X540_PHY_ID      0x01540200
-#define X550_PHY_ID2	0x01540223
+#define X550_PHY_ID     0x01540220
+#define X550_PHY_ID2    0x01540223
 #define X550_PHY_ID3	0x01540221
 #define X557_PHY_ID      0x01540240
 #define X557_PHY_ID2	0x01540250
@@ -3820,4 +3821,7 @@ struct ixgbe_info {
 #define IXGBE_NW_MNG_IF_SEL_MDIO_PHY_ADD_SHIFT	3
 #define IXGBE_NW_MNG_IF_SEL_MDIO_PHY_ADD	\
 				(0x1F << IXGBE_NW_MNG_IF_SEL_MDIO_PHY_ADD_SHIFT)
+
+#define MDIO_AN_RLPS1   0xE820  /* AN Receive Link Partner Status 1 */
+#define MDIO_AN_RLPS4   0xE823  /* AN Receive Link Partner Status 4 */
 #endif /* _IXGBE_TYPE_H_ */

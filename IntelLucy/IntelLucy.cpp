@@ -165,6 +165,8 @@ bool IntelLucy::init(OSDictionary *properties)
         nanoseconds_to_absolutetime(kTimeout4Gns, &timeoutCheck);
         nanoseconds_to_absolutetime(kTimeout2Gns, &hangTimeout);
         nanoseconds_to_absolutetime(kTimespan4ms, &itrUpdatePeriod);
+        nanoseconds_to_absolutetime(kLinkStableTime, &linkStableTresh);
+        linkUptime = 0;
         rxThrottleTime = 30;
         txThrottleTime = 60;
         
@@ -1035,11 +1037,11 @@ IOReturn IntelLucy::setPromiscuousMode(bool active)
         fctrl |= (IXGBE_FCTRL_UPE | IXGBE_FCTRL_MPE);
         vmolr |= IXGBE_VMOLR_MPE;
 
-        DebugLog("Promiscuous mode enabled.\n");
+        DebugLog("Promiscuous mode enabled for en%u.\n", netif->getUnitNumber());
     } else {
         hw->addr_ctrl.user_set_promisc = false;
 
-        DebugLog("Promiscuous mode disabled.\n");
+        DebugLog("Promiscuous mode disabled for en%u.\n", netif->getUnitNumber());
     }
     if (hw->mac.type != ixgbe_mac_82598EB) {
         vmolr |= IXGBE_READ_REG(hw, IXGBE_VMOLR(0)) &
@@ -1167,7 +1169,8 @@ IOReturn IntelLucy::setMaxPacketSize(UInt32 maxSize)
     if (maxSize <= kMaxPacketSize) {
         mtu = maxSize - (ETH_HLEN + ETH_FCS_LEN);
 
-        DebugLog("maxSize: %u, mtu: %u\n", maxSize, mtu);
+        DebugLog("maxSize: %u, mtu: %u of en%u.\n", maxSize,
+                 mtu, netif->getUnitNumber());
         
         ixgbeReinit(&adapterData);
         
@@ -1551,7 +1554,7 @@ IOReturn IntelLucy::setInputPacketPollingEnable(IONetworkInterface *interface, b
         }
         IXGBE_WRITE_FLUSH(hw);
     }
-    DebugLog("Input polling %s.\n", enabled ? "enabled" : "disabled");
+    DebugLog("Input polling %s for en%u.\n", enabled ? "enabled" : "disabled", netif->getUnitNumber());
     
     //DebugLog("setInputPacketPollingEnable() <===\n");
     

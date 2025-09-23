@@ -434,3 +434,4 @@ void ixgbe_mii_bus_init(struct ixgbe_adapter *adapter)
     
     hw->phy.mdio.mode_support = MDIO_SUPPORTS_C45 | MDIO_SUPPORTS_C22;
 }
+
