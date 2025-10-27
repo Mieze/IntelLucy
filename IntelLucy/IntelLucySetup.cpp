@@ -569,20 +569,11 @@ bool IntelLucy::setupDMADescriptors()
     rxRing[0].rxCleanedCount = rxRing[0].rxNextDescIndex = 0;
     rxRing[0].regIndex = 0;
 
-    rxMbufCursor = IOMbufNaturalMemoryCursor::withSpecification(PAGE_SIZE, 1);
-    
-    if (!rxMbufCursor) {
-        IOLog("Couldn't create rxMbufCursor.\n");
-        goto error_rx_segm;
-    }
     result = allocRxBuffers();
     
 done:
     return result;
     
-error_rx_buf:
-    RELEASE(rxMbufCursor);
-
 error_rx_segm:
     rxDescDmaCmd->clearMemoryDescriptor();
 
@@ -654,8 +645,10 @@ bool IntelLucy::allocRxBuffers()
     mbuf_t m;
     struct ixgbeRxBufferInfo *rm;
     struct ixgbeRxRing *ring;
-    IOPhysicalSegment rxSegment;
-    UInt32 n;
+    IOPhysicalAddress64 pa;
+    void *va;
+    unsigned int chunks;
+    errno_t error;
     UInt32 i, j;
     bool result = false;
     
@@ -679,28 +672,26 @@ bool IntelLucy::allocRxBuffers()
         ring = &rxRing[j];
         
         for (i = 0; i < kNumRxDesc; i++) {
-            m = allocatePacket(rxBufferPktSize);
+            chunks = 1;
+            error = mbuf_allocpacket(MBUF_WAITOK, rxBufferPktSize,
+                                     &chunks, &m);
             
-            if (!m) {
+            if (error) {
                 IOLog("Couldn't alloc receive buffer.\n");
                 goto error_rx_buf;
             }
-            n = rxMbufCursor->getPhysicalSegments(m, &rxSegment, 1);
+            va = mbuf_datastart(m);
+            pa = mbuf_data_to_physical(va);
             
-            if (n != 1) {
-                freePacket(m);
-                IOLog("getPhysicalSegments() for receive buffer failed.\n");
-                goto error_rx_buf;
-            }
             /* We have to keep the physical address of the buffer too
              * as descriptor write back overwrites it in the descriptor
              * so that it must be refreshed when the descriptor is
              * prepared for reuse.
              */
             ring->rxBufArray[i].mbuf = m;
-            ring->rxBufArray[i].phyAddr = rxSegment.location;
+            ring->rxBufArray[i].phyAddr = pa;
             
-            ring->rxDescArray[i].read.pkt_addr = OSSwapHostToLittleInt64(rxSegment.location);
+            ring->rxDescArray[i].read.pkt_addr = OSSwapHostToLittleInt64(pa);
             ring->rxDescArray[i].read.hdr_addr = 0;
         }
     }
@@ -712,9 +703,11 @@ bool IntelLucy::allocRxBuffers()
     sparePktHead = sparePktTail = NULL;
 
     for (i = 0; i < kRxNumSpareMbufs; i++) {
-        m = allocatePacket(rxBufferPktSize);
-        
-        if (m) {
+        chunks = 1;
+        error = mbuf_allocpacket(MBUF_WAITOK, rxBufferPktSize,
+                                 &chunks, &m);
+
+        if (!error) {
             if (sparePktHead) {
                 mbuf_setnext(sparePktTail, m);
                 sparePktTail = m;
@@ -737,7 +730,7 @@ error_rx_buf:
             
             for (i = 0; i < kNumRxDesc; i++) {
                 if (ring->rxBufArray[i].mbuf) {
-                    freePacket(ring->rxBufArray[i].mbuf);
+                    mbuf_freem_list(ring->rxBufArray[i].mbuf);
                     ring->rxBufArray[i].mbuf = NULL;
                     ring->rxBufArray[i].phyAddr = 0;
                 }
@@ -752,16 +745,19 @@ error_rx_buf:
 void IntelLucy::refillSpareBuffers()
 {
     mbuf_t m;
+    unsigned int chunks;
+    errno_t error;
 
     while (spareNum < kRxNumSpareMbufs) {
-        m = allocatePacket(rxBufferPktSize);
+        chunks = 1;
+        error = mbuf_allocpacket(MBUF_WAITOK, rxBufferPktSize,
+                                 &chunks, &m);
 
-        if (!m)
-            break;
-        
-        mbuf_setnext(sparePktTail, m);
-        sparePktTail = m;
-        OSIncrementAtomic(&spareNum);
+        if (!error) {
+            mbuf_setnext(sparePktTail, m);
+            sparePktTail = m;
+            OSIncrementAtomic(&spareNum);
+        }
     }
 }
 
@@ -803,9 +799,7 @@ void IntelLucy::freeDMADescriptors()
         rxDescDmaCmd->clearMemoryDescriptor();
         rxDescDmaCmd->release();
         rxDescDmaCmd = NULL;
-    }
-    RELEASE(rxMbufCursor);
-    
+    }    
     if (txBufArrayMem) {
         IOFree(txBufArrayMem, kTxBufMemSize);
         txRing[0].txBufArray = NULL;
@@ -817,7 +811,7 @@ void IntelLucy::freeDMADescriptors()
             
             for (i = 0; i < kNumRxDesc; i++) {
                 if (ring->rxBufArray[i].mbuf) {
-                    freePacket(ring->rxBufArray[i].mbuf);
+                    mbuf_freem_list(ring->rxBufArray[i].mbuf);
                     ring->rxBufArray[i].mbuf = NULL;
                     ring->rxBufArray[i].phyAddr = 0;
                 }

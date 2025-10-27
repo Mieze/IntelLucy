@@ -128,9 +128,6 @@ enum {
 enum {
     kRxBufferPktSize2K = 2048,
     kRxBufferPktSize4K = 4096,
-    kRxBufferPktSize8K = 8192,
-    kRxBufferPktSize16K = 16384
-
 };
 
 #define kRxNumSpareMbufs 150
@@ -569,7 +566,6 @@ private:
     IOPhysicalAddress64 rxPhyAddr;
     IODMACommand *rxDescDmaCmd;
     IOBufferMemoryDescriptor *rxBufDesc;
-    IOMbufNaturalMemoryCursor *rxMbufCursor;
     mbuf_t sparePktHead;
     mbuf_t sparePktTail;
     IONetworkPacketPollingParameters pollParams;

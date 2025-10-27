@@ -116,7 +116,6 @@ bool IntelLucy::init(OSDictionary *properties)
         etherStats = NULL;
         baseMap = NULL;
         baseAddr = NULL;
-        rxMbufCursor = NULL;
         txMbufCursor = NULL;
         txActiveQueueMask = 0;
 
@@ -561,7 +560,7 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
 
         if (mbuf_get_tso_requested(m, &offloadFlags, &mss)) {
             DebugLog("Ethernet mbuf_get_tso_requested() failed. Dropping packet.\n");
-            freePacket(m);
+            mbuf_freem_list(m);
             continue;
         }
         /* First prepare the header and the command bits. */
@@ -677,7 +676,7 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
         if (!numSegs) {
             DebugLog("Ethernet getPhysicalSegmentsWithCoalesce() failed. Dropping packet.\n");
             etherStats->dot3TxExtraEntry.resourceErrors++;
-            freePacket(m);
+            mbuf_freem_list(m);
             continue;
         }
         OSAddAtomic(-numDescs, &txRing[0].txNumFreeDesc);
@@ -1242,20 +1241,18 @@ done:
     }
 }
 
-UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing *ring,
-                              uint32_t maxCount, IOMbufQueue *pollQueue, void *context)
+UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing *ring, uint32_t maxCount, IOMbufQueue *pollQueue, void *context)
 {
-    IOPhysicalSegment rxSegment;
     union ixgbe_adv_rx_desc *desc = &ring->rxDescArray[ring->rxNextDescIndex];
     struct ixgbe_hw *hw = &adapterData.hw;
     struct ixgbeRxBufferInfo *bufInfo;
+    IOPhysicalAddress64 phyAddr;
     mbuf_t bufPkt, newPkt;
     UInt32 pktCnt = 0;
     UInt32 pktBytes = 0;
     UInt32 status;
     UInt32 pktSize;
     UInt32 pktType;
-    UInt32 n;
     UInt16 vlanTag;
     UInt16 nextIdx;
     UInt8 regIndex = ring->regIndex;
@@ -1303,23 +1300,23 @@ UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing 
              * No spare packets available so that we must leave
              * the original packet in place as a last resort.
              */
-            DebugLog("replaceOrCopyPacket() failed.\n");
+            DebugLog("replaceOrCopyPacket() failed: pktSize=%u\n", pktSize);
             etherStats->dot3RxExtraEntry.resourceErrors++;
             goto error_drop;
         }
 handle_pkt:
         /* If the packet was replaced we have to update the descriptor's buffer address. */
         if (replaced) {
-            n = rxMbufCursor->getPhysicalSegments(bufPkt, &rxSegment, 1);
-
-            if (n != 1) {
+            if (mbuf_next(bufPkt) == NULL) {
+                phyAddr = mbuf_data_to_physical(mbuf_datastart(bufPkt));
+            } else {
                 DebugLog("getPhysicalSegments() failed.\n");
                 etherStats->dot3RxExtraEntry.resourceErrors++;
-                freePacket(bufPkt);
+                mbuf_freem_list(bufPkt);
                 goto error_drop;
             }
             bufInfo->mbuf = bufPkt;
-            bufInfo->phyAddr = rxSegment.location;
+            bufInfo->phyAddr = phyAddr;
         }
         /* Set the length of the buffer. */
         mbuf_setlen(newPkt, pktSize);
@@ -1435,7 +1432,7 @@ error_drop:
     ixgbeDropPktFragment(ring);
     
     if (bufInfo->rscHead) {
-        freePacket(bufInfo->rscHead);
+        mbuf_freem_list(bufInfo->rscHead);
         bufInfo->rscHead = NULL;
         bufInfo->rscTail = NULL;
     }

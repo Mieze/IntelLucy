@@ -406,7 +406,7 @@ void IntelLucy::ixgbeDropPktFragment(struct ixgbeRxRing *ring)
      * we have to free it in order to prevent a memory leak.
      */
     if (ring->rxPacketHead)
-            freePacket(ring->rxPacketHead);
+        mbuf_freem_list(ring->rxPacketHead);
         
     ring->rxPacketHead = ring->rxPacketTail = NULL;
     ring->rxPacketSize = 0;
@@ -440,7 +440,7 @@ void IntelLucy::ixgbeClearRxRings(struct ixgbe_adapter *adapter)
              * the rx ring's buffer info structures.
              */
             if (bufInfo->rscHead) {
-                freePacket(bufInfo->rscHead);
+                mbuf_freem_list(bufInfo->rscHead);
                 
                 bufInfo->rscHead = NULL;
                 bufInfo->rscTail = NULL;
@@ -453,7 +453,7 @@ void IntelLucy::ixgbeClearRxRings(struct ixgbe_adapter *adapter)
          * been upstreamed yet.
          */
         if (ring->rxPacketHead)
-            freePacket(ring->rxPacketHead);
+            mbuf_freem_list(ring->rxPacketHead);
         
         ring->rxPacketHead = ring->rxPacketTail = NULL;
         ring->rxPacketSize = 0;
@@ -736,7 +736,7 @@ void IntelLucy::ixgbeClearTxRings(struct ixgbe_adapter *adapter)
             m = ring->txBufArray[i].mbuf;
             
             if (m) {
-                freePacket(m);
+                mbuf_freem_list(m);
                 ring->txBufArray[i].mbuf = NULL;
                 ring->txBufArray[i].numDescs = 0;
             }

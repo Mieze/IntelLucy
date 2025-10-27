@@ -46,6 +46,8 @@
 		D32A66DA2B939BFA009375B4 /* uapi-ethtool.h in Headers */ = {isa = PBXBuildFile; fileRef = D32A66CA2B939BFA009375B4 /* uapi-ethtool.h */; };
 		D32A66E32B939E59009375B4 /* libkmod.a in Frameworks */ = {isa = PBXBuildFile; fileRef = D32A664B2B939A83009375B4 /* libkmod.a */; };
 		D32A66E62B93B590009375B4 /* IntelLucyPhy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D32A66E52B93B590009375B4 /* IntelLucyPhy.cpp */; };
+		D3AAFFF22EAEA57B00ED7A43 /* IntelLucyRxPool.hpp in Headers */ = {isa = PBXBuildFile; fileRef = D3AAFFF02EAEA57B00ED7A43 /* IntelLucyRxPool.hpp */; };
+		D3AAFFF32EAEA57B00ED7A43 /* IntelLucyRxPool.cpp in Sources */ = {isa = PBXBuildFile; fileRef = D3AAFFF12EAEA57B00ED7A43 /* IntelLucyRxPool.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -132,6 +134,8 @@
 		D32A66E22B939DE1009375B4 /* dcbnl.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = dcbnl.h; sourceTree = "<group>"; };
 		D32A66E52B93B590009375B4 /* IntelLucyPhy.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IntelLucyPhy.cpp; sourceTree = "<group>"; };
 		D32A66E72B94286B009375B4 /* gpl.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = gpl.txt; sourceTree = "<group>"; };
+		D3AAFFF02EAEA57B00ED7A43 /* IntelLucyRxPool.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = IntelLucyRxPool.hpp; sourceTree = "<group>"; };
+		D3AAFFF12EAEA57B00ED7A43 /* IntelLucyRxPool.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = IntelLucyRxPool.cpp; sourceTree = "<group>"; };
 		D3CD32B52BA7796600692742 /* libkmod.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libkmod.a; sourceTree = "<group>"; };
 		D3CD32B62BA7796600692742 /* libkmodc++.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = "libkmodc++.a"; sourceTree = "<group>"; };
 		D3CD32B92BA7796600692742 /* libkmodtest.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libkmodtest.h; sourceTree = "<group>"; };
@@ -1407,6 +1411,8 @@
 				D32A66412B9399EE009375B4 /* IntelLucySetup.cpp */,
 				D32A663C2B9399EE009375B4 /* IntelLucySupport.cpp */,
 				D32A663B2B9399EE009375B4 /* IntelLucySupport.hpp */,
+				D3AAFFF02EAEA57B00ED7A43 /* IntelLucyRxPool.hpp */,
+				D3AAFFF12EAEA57B00ED7A43 /* IntelLucyRxPool.cpp */,
 				D32A66892B939B70009375B4 /* ixgbe */,
 				D32A66BA2B939BD3009375B4 /* linux */,
 				D32A66352B9396DC009375B4 /* Info.plist */,
@@ -3682,6 +3688,7 @@
 				D32A66D62B939BFA009375B4 /* uapi-mii.h in Headers */,
 				D32A66CF2B939BFA009375B4 /* uapi-const.h in Headers */,
 				D32A66D32B939BFA009375B4 /* vdso-math64.h in Headers */,
+				D3AAFFF22EAEA57B00ED7A43 /* IntelLucyRxPool.hpp in Headers */,
 				D32A66D82B939BFA009375B4 /* time64.h in Headers */,
 				D32A66D02B939BFA009375B4 /* uapi-ip.h in Headers */,
 				D32A66CC2B939BFA009375B4 /* vdso-const.h in Headers */,
@@ -3797,6 +3804,7 @@
 				D32A66A62B939B8C009375B4 /* ixgbe_phy.c in Sources */,
 				D32A66A52B939B8C009375B4 /* ixgbe_82598.c in Sources */,
 				D32A66462B9399EE009375B4 /* IntelLucyRxTx.cpp in Sources */,
+				D3AAFFF32EAEA57B00ED7A43 /* IntelLucyRxPool.cpp in Sources */,
 				D32A66AD2B939B8C009375B4 /* ixgbe_dcb_82599.c in Sources */,
 				D32A66452B9399EE009375B4 /* IntelLucyHardware.cpp in Sources */,
 				D32A66E62B93B590009375B4 /* IntelLucyPhy.cpp in Sources */,
@@ -3945,7 +3953,7 @@
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO;
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.1.340;
+				CURRENT_PROJECT_VERSION = 1.1.406;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -3961,7 +3969,7 @@
 					"$(PROJECT_DIR)/MacKernelSDK/Library/x86_64",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = 1.1.3;
+				MARKETING_VERSION = 1.1.4;
 				MODULE_NAME = com.insanelymac.IntelLucy;
 				MODULE_VERSION = $CURRENT_PROJECT_VERSION;
 				PRODUCT_BUNDLE_IDENTIFIER = com.insanelymac.IntelLucy;
@@ -3983,7 +3991,7 @@
 				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO;
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1.1.340;
+				CURRENT_PROJECT_VERSION = 1.1.406;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = "";
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -3999,7 +4007,7 @@
 					"$(PROJECT_DIR)/MacKernelSDK/Library/x86_64",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
-				MARKETING_VERSION = 1.1.3;
+				MARKETING_VERSION = 1.1.4;
 				MODULE_NAME = com.insanelymac.IntelLucy;
 				MODULE_VERSION = $CURRENT_PROJECT_VERSION;
 				PRODUCT_BUNDLE_IDENTIFIER = com.insanelymac.IntelLucy;
