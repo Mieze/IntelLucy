@@ -26,6 +26,7 @@
 
 
 #include "IntelLucySupport.hpp"
+#include "IntelLucyRxPool.hpp"
 
 #define    RELEASE(x)    if(x){(x)->release();(x)=NULL;}
 
@@ -108,7 +109,7 @@ enum {
 
 /* The number of descriptors must be a power of 2. */
 #define kNumTxDesc      1024    /* Number of Tx descriptors */
-#define kNumRxDesc      1024     /* Number of Rx descriptors */
+#define kNumRxDesc      512     /* Number of Rx descriptors */
 #define kTxLastDesc     (kNumTxDesc - 1)
 #define kRxLastDesc     (kNumRxDesc - 1)
 #define kTxDescMask     (kNumTxDesc - 1)
@@ -123,6 +124,9 @@ enum {
 #define kRxBufArraySize (kNumRxDesc * sizeof(struct ixgbeRxBufferInfo))
 #define kTxBufMemSize (kTxBufArraySize * kNumTxRings)
 #define kRxBufMemSize (kRxBufArraySize * kNumRxRings)
+
+#define kRxPoolPktCap   ((kNumRxDesc / 2) * 3)
+#define kRxPoolHdrCap   (kNumRxDesc / 4)
 
 /* This is the receive buffer size (must be large enough to hold a packet). */
 enum {
@@ -284,9 +288,11 @@ struct ixgbeTxRing {
 
 struct ixgbeRxBufferInfo {
     mbuf_t mbuf;
-    IOPhysicalAddress64 phyAddr;
     mbuf_t rscHead;
     mbuf_t rscTail;
+    IOPhysicalAddress64 phyAddr;
+    IOMemoryDescriptor *ioMemDesc;
+    IOAddressRange range;
 };
 
 struct ixgbeRxRing {
@@ -350,6 +356,7 @@ enum KernelVersion {
     Ventura       = 22,
     Sonoma        = 23,
     Sequoia       = 24,
+    Tahoe         = 25,
 };
 
 /**
@@ -423,8 +430,13 @@ private:
     bool setupDMADescriptors();
     void freeDMADescriptors();
     bool allocTxBufferInfo();
-    bool allocRxBuffers();
-    void refillSpareBuffers();
+    
+    bool allocRxPool();
+    void freeRxPool();
+    void refillRxPool();
+    bool allocRxDMAMap();
+    void freeRxDMAMap();
+    IOPhysicalAddress replaceRxDMAMap(struct ixgbeRxBufferInfo *bufferInfo, IOVirtualAddress virtAddr);
     
     static IOReturn refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
 
@@ -562,18 +574,17 @@ private:
     
     /* receiver data */
     struct ixgbeRxRing rxRing[kNumRxRings];
+    struct ixgbeRxRingMap *rxRingMap[kNumRxRings];
     void *rxBufArrayMem;
     IOPhysicalAddress64 rxPhyAddr;
     IODMACommand *rxDescDmaCmd;
     IOBufferMemoryDescriptor *rxBufDesc;
-    mbuf_t sparePktHead;
-    mbuf_t sparePktTail;
+    IntelLucyRxPool *rxPool;
     IONetworkPacketPollingParameters pollParams;
     IOEthernetAddress *mcAddrList;
     UInt32 mcListCount;
     UInt32 rxActiveQueueMask;
     UInt32 rxBufferPktSize;
-    SInt32 spareNum;
 
     /* power management data */
     unsigned long powerState;
@@ -629,6 +640,7 @@ private:
     bool enableASPM;
     bool enableRSC;
     bool allowUnsupportedSFP;
+    bool useAppleVTD;
 };
 
 /*
