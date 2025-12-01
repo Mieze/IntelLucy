@@ -54,6 +54,12 @@ Although IntelLucy supports AppleVTD, there is no guarantee that your mainboard 
 - If there are reserved memory regions, you might want to patch your DMAR removing these regions. If it resolves the issue, congratulations! Be careful, because the board's manufacturer did add these regions with intention. Removing them may produce unexpected results too, like the problems described above.
 - Otherwise you have to keep AppleVTD disabled, because it is incompatible with your board and there is no way to make it compatible.
 
+**Contributions**
+
+If you find my projects useful, please consider to buy me a cup of coffee: https://buymeacoffee.com/mieze
+
+Thank you for your support! Your contribution helps me to continue development.
+
 **Known Issues**
 - Please keep in mind that X520 adapters don't support 10GBase-T SFP+ modules because the module's power requirement (approximately 3W) exceeds the adapter's limits. Installing a 10GBase-T SFP+ module in a X520 adapter anyway may damage the device.
 - Manual medium selection is working on X540 and X550 since version 1.0.4.
