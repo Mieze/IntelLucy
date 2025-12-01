@@ -603,33 +603,6 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
         return;
     
     adapter->flags2 &= ~IXGBE_FLAG2_SEARCH_FOR_SFP;
-/*
-    switch (hw->mac.type) {
-        case ixgbe_mac_82598EB: {
-            u32 frctl = IXGBE_READ_REG(hw, IXGBE_FCTRL);
-            u32 rmcs = IXGBE_READ_REG(hw, IXGBE_RMCS);
-            flow_rx = !!(frctl & IXGBE_FCTRL_RFCE);
-            flow_tx = !!(rmcs & IXGBE_RMCS_TFCE_802_3X);
-        }
-            break;
-            
-        case ixgbe_mac_X540:
-        case ixgbe_mac_X550:
-        case ixgbe_mac_X550EM_x:
-        case ixgbe_mac_x550em_a:
-        case ixgbe_mac_82599EB: {
-            u32 mflcn = IXGBE_READ_REG(hw, IXGBE_MFLCN);
-            u32 fccfg = IXGBE_READ_REG(hw, IXGBE_FCCFG);
-            flow_rx = !!(mflcn & IXGBE_MFLCN_RFCE);
-            flow_tx = !!(fccfg & IXGBE_FCCFG_TFCE_802_3X);
-        }
-            break;
-            
-        default:
-            flow_tx = false;
-            flow_rx = false;
-            break;
-    }*/
     hw->mac.ops.fc_enable(hw);
     fc = hw->fc.current_mode;
     
@@ -642,10 +615,10 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
 */
     bzero(&pollParams, sizeof(IONetworkPacketPollingParameters));
     pollParams.lowThresholdPackets = 10;
-    pollParams.highThresholdPackets = 40;
+    pollParams.highThresholdPackets = 64;
     pollParams.lowThresholdBytes = 0x1000;
     pollParams.highThresholdBytes = 0x10000;
-    pollParams.pollIntervalTime = 1000000;  /* 1ms */
+    actualPollTime = 1000000;  /* 1ms */
     
     switch (link_speed) {
         case IXGBE_LINK_SPEED_10GB_FULL:
@@ -712,7 +685,7 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
             }
             speed_str = "10 Gbps";
             
-            pollParams.pollIntervalTime = pollTime10G;
+            actualPollTime = (mtu >= 4076) ? pollTime10G : (pollTime10G + 10000);
             break;
             
             
@@ -724,7 +697,7 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
             }
             speed_str = "5 Gbps";
             
-            pollParams.pollIntervalTime = pollTime5G;
+            actualPollTime = (mtu >= 4076) ? pollTime5G : (pollTime5G + 20000);
             break;
             
         case IXGBE_LINK_SPEED_2_5GB_FULL:
@@ -735,7 +708,7 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
             }
             speed_str = "2.5 Gbps";
             
-            pollParams.pollIntervalTime = pollTime2G;
+            actualPollTime = pollTime2G;
             break;
             
         case IXGBE_LINK_SPEED_1GB_FULL:
@@ -780,7 +753,7 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
                             }
                             break;
                     }
-                    pollParams.pollIntervalTime = 170000;
+                    actualPollTime = 170000;
                     break;
                     
                 case ixgbe_media_type_copper:
@@ -818,6 +791,7 @@ void IntelLucy::ixgbeWatchdogLinkIsUp(struct ixgbe_adapter *adapter)
     
     setLinkStatus((kIONetworkLinkValid | kIONetworkLinkActive), medium, medium->getSpeed(), NULL);
     
+    pollParams.pollIntervalTime = actualPollTime;
     netif->setPacketPollingParameters(&pollParams, 0);
     DebugLog("pollIntervalTime: %lluµs\n", (pollParams.pollIntervalTime / 1000));
     

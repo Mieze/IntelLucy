@@ -27,15 +27,15 @@
 				<key>rxCoalescing</key>
 				<true/>
 				<key>µsPollTime10G</key>
-				<integer>55</integer>
+				<integer>100</integer>
 				<key>µsPollTime2G</key>
-				<integer>110</integer>
+				<integer>160</integer>
 				<key>µsPollTime5G</key>
-				<integer>85</integer>
+				<integer>120</integer>
 				<key>µsRxItrTime</key>
 				<integer>0</integer>
 				<key>µsTxItrTime</key>
-				<integer>70</integer>
+				<integer>0</integer>
 			</dict>
 			<key>DriverVersion</key>
 			<string>$MODULE_VERSION</string>

@@ -102,14 +102,13 @@ enum {
 
 #define kTransmitQueueCapacity  1000
 
-/* With up to 40 segments we should be on the save side. */
-#define kMaxSegs 40
-
-#define kTxSpareDescs   16
+/* With up to 32 segments we should be on the save side. */
+#define kMaxSegs 32
+#define kMinFreeDescs (kMaxSegs + 2)
 
 /* The number of descriptors must be a power of 2. */
-#define kNumTxDesc      1024    /* Number of Tx descriptors */
-#define kNumRxDesc      512     /* Number of Rx descriptors */
+#define kNumTxDesc      512    /* Number of Tx descriptors */
+#define kNumRxDesc      1024     /* Number of Rx descriptors */
 #define kTxLastDesc     (kNumTxDesc - 1)
 #define kRxLastDesc     (kNumRxDesc - 1)
 #define kTxDescMask     (kNumTxDesc - 1)
@@ -125,29 +124,45 @@ enum {
 #define kTxBufMemSize (kTxBufArraySize * kNumTxRings)
 #define kRxBufMemSize (kRxBufArraySize * kNumRxRings)
 
-#define kRxPoolPktCap   ((kNumRxDesc / 2) * 3)
-#define kRxPoolHdrCap   (kNumRxDesc / 4)
+/* IntelLucyRxPool capacities */
+#define kRxPoolClstCap   150    /* mbufs with 4k cluster*/
+#define kRxPoolMbufCap   50     /* mbufs without clusters */
 
-/* This is the receive buffer size (must be large enough to hold a packet). */
+/* Numbers of IOMemoryDescriptors and IORanges for tx */
+#define kNumTxMemDesc       (kNumTxDesc / 2)
+#define kTxMemDescMask      (kNumTxMemDesc - 1)
+#define kNumTxRanges        (kNumTxDesc + kMaxSegs)
+#define kTxRangeMask        kTxDescMask
+#define kTxMapMemSize       sizeof(struct ixgbeTxMapInfo)
+
+/* Numbers of IOMemoryDescriptors and batch size for rx */
+#define kRxMemBaseShift 4
+#define kNumRxMemDesc   (kNumRxDesc >> kRxMemBaseShift)
+#define kRxMapMemSize   (sizeof(struct ixgbeRxMapInfo) * kNumRxRings)
+#define kRxMemBatchSize (kNumRxDesc / kNumRxMemDesc)
+#define kRxMemDescMask  (kRxMemBatchSize - 1)
+#define kRxMemBaseMask  ~kRxMemDescMask
+
+/* This is the receive buffer size. */
 enum {
     kRxBufferPktSize2K = 2048,
     kRxBufferPktSize4K = 4096,
 };
 
-#define kRxNumSpareMbufs 150
 #define kMaxMtu 9216
 #define kMaxPacketSize (kMaxMtu + ETH_HLEN + ETH_FCS_LEN)
 
 /* Timer values */
-#define kTimeout10us   10U
+#define kTimeout10us    10U
 #define kTimeout100ms   100U
 #define kTimeout1000ms  1000U
 #define kTimeout2000ms  2000U
-#define kTimeout2Gns  2000000000UL
-#define kTimeout4Gns  4000000000UL
-#define kTimespan4ms  4000000UL
+#define kTimeout2Gns    2000000000UL
+#define kTimeout4Gns    4000000000UL
+#define kTimespan4ms    4000000UL
 #define kPhyRecoverTime 5000U   /* ms */
-#define kLinkStableTime  3000000000UL
+#define kLinkStableTime 3000000000UL
+#define kMapDelayTime  5000UL
 
 /* Treshhold value to wake a stalled queue */
 #define kTxQueueWakeTreshhold (2 + kMaxSegs * 2)
@@ -163,6 +178,8 @@ enum {
 
 /* Maximum DMA latency in ns for Ventura and below. */
 #define kMaxIntrLatencyVent 50000
+
+#define kJumboTresh 4076
 
 #define kMacHdrLen      14
 #define kIPv4HdrLen     20
@@ -229,6 +246,7 @@ enum
 #define kPollTime10GName "µsPollTime10G"
 #define kPollTime5GName "µsPollTime5G"
 #define kPollTime2GName "µsPollTime2G"
+
 #define kRxItrTimeName "µsRxItrTime"
 #define kTxItrTimeName "µsTxItrTime"
 #define kNameLenght 64
@@ -241,13 +259,15 @@ struct intelDevice {
 };
 
 enum IntelLucyRxTxStateFlags {
-    __RX_ADAPT = 0,     /* adaptive ITR enabled*/
+    __RXTX_ADAPT = 0,   /* adaptive ITR enabled*/
     __RX_RSC = 1,       /* RSC enabled */
+    __RX_MAP = 2,       /* background mapping in progress */
 };
 
 enum IntelLucyRxTxStateMask {
-    __RX_ADAPT_M = (1 << __RX_ADAPT),
+    __RXTX_ADAPT_M = (1 << __RXTX_ADAPT),
     __RX_RSC_M = (1 << __RX_RSC),
+    __RX_MAP_M = (1 << __RX_MAP),
 };
 
 #define ring_is_rsc_enabled(ring) \
@@ -258,22 +278,60 @@ enum IntelLucyRxTxStateMask {
     OSBitAndAtomic8(~__RX_RSC_M, &(ring)->state)
 
 #define ring_is_adaptive(ring) \
-    (__RX_ADAPT_M & (ring)->state)
+    (__RXTX_ADAPT_M & (ring)->state)
 #define set_ring_adaptive(ring) \
-    OSBitOrAtomic8(__RX_ADAPT_M, &(ring)->state)
+    OSBitOrAtomic8(__RXTX_ADAPT_M, &(ring)->state)
 #define clear_ring_adaptive(ring) \
-    OSBitAndAtomic8(~__RX_ADAPT_M, &(ring)->state)
+    OSBitAndAtomic8(~__RXTX_ADAPT_M, &(ring)->state)
 
-struct ixgbeTxBufferInfo {
+#define ring_is_mapping(ring) \
+    (__RX_MAP_M & (ring)->state)
+#define set_ring_mapping(ring) \
+    OSBitOrAtomic8(__RX_MAP_M, &(ring)->state)
+#define clear_ring_mapping(ring) \
+    OSBitAndAtomic8(~__RX_MAP_M, &(ring)->state)
+
+/*
+ * Indicates if a tx IOMemoryDescriptor is in the prepared
+ * (active) or completed state (inactive).
+ */
+enum
+{
+    kIOMemoryInactive = 0,
+    kIOMemoryActive = 1
+};
+
+/*
+ * Selects the descriptor ring update strategy for
+ * rxMapBuffers().
+ */
+enum
+{
+   kRingUpdNone = 0,    /* Don't update ring at all. */
+   kRingUpdImm = 1,     /* Update ring after every batch. */
+   kRingUpdLate = 2,    /* Update ring after all batches. */
+};
+
+typedef struct ixgbeTxMapInfo {
+    UInt16 txNextMem2Use;
+    UInt16 txNextMem2Free;
+    SInt16 txNumFreeMem;
+    IOMemoryDescriptor *txMemIO[kNumTxMemDesc];
+    IOAddressRange txMemRange[kNumTxRanges];
+    IOAddressRange txSCRange[kMaxSegs];
+} ixgbeTxMapInfo;
+
+typedef struct ixgbeTxBufferInfo {
     mbuf_t mbuf;
     UInt32 numDescs;
     UInt32 packetBytes;
-};
+} ixgbeTxBufferInfo;
 
-struct ixgbeTxRing {
+typedef struct ixgbeTxRing {
     union ixgbe_adv_tx_desc *txDescArray;
-    struct ixgbeTxBufferInfo *txBufArray;
-    struct ixgbeQueueVector vector;
+    ixgbeTxBufferInfo *txBufArray;
+    ixgbeTxMapInfo *txMapInfo;
+    ixgbeQueueVector vector;
     IOPhysicalAddress64 txPhyRingAddr;
     SInt64 txDescDone;
     SInt64 txDescDoneLast;
@@ -284,30 +342,35 @@ struct ixgbeTxRing {
     UInt16 txHangSuspected;
     UInt8 regIndex;
     UInt8 state;
-};
+} ixgbeTxRing;
 
-struct ixgbeRxBufferInfo {
+typedef struct ixgbeRxMapInfo {
+    IOMemoryDescriptor *rxMemIO[kNumRxMemDesc];
+    IOAddressRange rxMemRange[kNumRxDesc];
+} ixgbeRxMapInfo;
+
+typedef struct ixgbeRxBufferInfo {
     mbuf_t mbuf;
     mbuf_t rscHead;
     mbuf_t rscTail;
     IOPhysicalAddress64 phyAddr;
-    IOMemoryDescriptor *ioMemDesc;
-    IOAddressRange range;
-};
+} ixgbeRxBufferInfo;
 
-struct ixgbeRxRing {
+typedef struct ixgbeRxRing {
     union ixgbe_adv_rx_desc *rxDescArray;
-    struct ixgbeRxBufferInfo *rxBufArray;
-    struct ixgbeQueueVector vector;
+    ixgbeRxBufferInfo *rxBufArray;
+    ixgbeRxMapInfo *rxMapInfo;
+    ixgbeQueueVector vector;
     IOPhysicalAddress64 rxPhyRingAddr;
     mbuf_t rxPacketHead;
     mbuf_t rxPacketTail;
     UInt32 rxPacketSize;
     UInt16 rxNextDescIndex;
     UInt16 rxCleanedCount;
+    UInt16 rxMapNextIndex;
     UInt8 regIndex;
     UInt8 state;
-};
+} ixgbeRxRing;
 
 struct mediumTable {
     IOMediumType    type;
@@ -430,15 +493,22 @@ private:
     bool setupDMADescriptors();
     void freeDMADescriptors();
     bool allocTxBufferInfo();
+    void freeTxBufferInfo();
     
+    /* Methods for mapping of of tx packets */
+    UInt32 txMapPacket(mbuf_t packet, IOPhysicalSegment *vector, UInt32 maxSegs, struct ixgbeTxRing *ring);
+    void txUnmapPacket(struct ixgbeTxRing *ring);
+
+    /* Methods for mapping of of rx buffers and buffer management */
     bool allocRxPool();
     void freeRxPool();
-    void refillRxPool();
-    bool allocRxDMAMap();
-    void freeRxDMAMap();
-    IOPhysicalAddress replaceRxDMAMap(struct ixgbeRxBufferInfo *bufferInfo, IOVirtualAddress virtAddr);
-    
-    static IOReturn refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
+    bool setupRxMap();
+    void freeRxMap();
+    UInt16 rxMapBuffers(struct ixgbeRxRing *ring, UInt16 index, UInt16 count, UInt16 updateType);
+
+    /* Methods for delayed mapping of rx buffers */
+    void rxWorkThread(UInt64 work);
+    static void rxRunWorkThread(thread_call_param_t param0, thread_call_param_t param1);
 
     static IOReturn setPowerStateWakeAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
     static IOReturn setPowerStateSleepAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4);
@@ -447,11 +517,15 @@ private:
     void initPCIPowerManagment(IOPCIDevice *provider, const struct e1000_info *ei);
     inline void ixgbeEnablePCIDevice(IOPCIDevice *provider);
     void interruptOccurred(OSObject *client, IOInterruptEventSource *src, int count);
-    
+    void interruptOccurredVTD(OSObject *client, IOInterruptEventSource *src, int count);
+
     void txCleanRing(struct ixgbeTxRing *ring);
     UInt32 rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing *ring,
                        uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
 
+    UInt32 rxCleanRingVTD(IONetworkInterface *interface, struct ixgbeRxRing *ring,
+                       uint32_t maxCount, IOMbufQueue *pollQueue, void *context);
+    
     /* Hardware specific methods */
     bool ixgbeIdentifyChip();
     bool ixgbeStart(const struct intelDevice *devTable);
@@ -541,8 +615,6 @@ private:
     /* Jumbo frame support methods */
     void ixgbeDropPktFragment(struct ixgbeRxRing *ring);
     
-    inline void ixgbeGetChecksumResult(mbuf_t m, UInt32 status);
-
     /* timer action */
     void timerAction(IOTimerEventSource *timer);
 
@@ -562,8 +634,9 @@ private:
     volatile void *baseAddr;
     
     /* transmitter data */
-    struct ixgbeTxRing txRing[kNumTxRings];
+    ixgbeTxRing txRing[kNumTxRings];
     void *txBufArrayMem;
+    void *txMapMem;
     IOPhysicalAddress64 txPhyAddr;
     IODMACommand *txDescDmaCmd;
     IOBufferMemoryDescriptor *txBufDesc;
@@ -573,13 +646,14 @@ private:
     UInt32 maxLatency;
     
     /* receiver data */
-    struct ixgbeRxRing rxRing[kNumRxRings];
-    struct ixgbeRxRingMap *rxRingMap[kNumRxRings];
+    ixgbeRxRing rxRing[kNumRxRings];
     void *rxBufArrayMem;
+    void *rxMapMem;
     IOPhysicalAddress64 rxPhyAddr;
     IODMACommand *rxDescDmaCmd;
     IOBufferMemoryDescriptor *rxBufDesc;
     IntelLucyRxPool *rxPool;
+    thread_call_t callEntry;
     IONetworkPacketPollingParameters pollParams;
     IOEthernetAddress *mcAddrList;
     UInt32 mcListCount;
@@ -598,6 +672,7 @@ private:
     UInt64 timeoutCheck;
     UInt64 hangTimeout;
     UInt64 itrUpdatePeriod;
+    UInt64 callDelay;
     
     /* Time stamp of the last link up event. */
     UInt64 linkUptime;
@@ -623,7 +698,8 @@ private:
     UInt64 pollTime10G;
     UInt64 pollTime5G;
     UInt64 pollTime2G;
-
+    UInt64 actualPollTime;
+    
     /* interrupt throttling times in µs */
     UInt32 rxThrottleTime;
     UInt32 txThrottleTime;

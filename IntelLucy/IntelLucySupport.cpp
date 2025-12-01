@@ -414,7 +414,8 @@ void ixgbe_setup_rdrxctl(struct ixgbe_adapter *adapter)
  * @ring: structure containing ring specific data
  **/
 void ixgbe_configure_rscctl(struct ixgbe_adapter *adapter,
-                            struct ixgbeRxRing *ring)
+                            struct ixgbeRxRing *ring,
+                            u32 maxDesc)
 {
     struct ixgbe_hw *hw = &adapter->hw;
     u32 rscctrl;
@@ -430,10 +431,25 @@ void ixgbe_configure_rscctl(struct ixgbe_adapter *adapter,
      * total size of max desc * buf_len is not greater
      * than 65536
      */
-    rscctrl |= IXGBE_RSCCTL_MAXDESC_8;
+    rscctrl |= maxDesc;
     IXGBE_WRITE_REG(hw, IXGBE_RSCCTL(reg_idx), rscctrl);
 }
 
+void ixgbe_get_checksum_result(mbuf_t m, UInt32 status)
+{
+    mbuf_csum_performed_flags_t performed = 0;
+    UInt32 value = 0;
+
+    if ((status & (IXGBE_RXD_STAT_IPCS | IXGBE_RXDADV_ERR_IPE)) == IXGBE_RXD_STAT_IPCS)
+        performed |= (MBUF_CSUM_DID_IP | MBUF_CSUM_IP_GOOD);
+    
+    if ((status & (IXGBE_RXD_STAT_L4CS | IXGBE_RXDADV_ERR_TCPE)) == IXGBE_RXD_STAT_L4CS){
+        performed |= (MBUF_CSUM_DID_DATA | MBUF_CSUM_PSEUDO_HDR);
+        value = 0xffff; // fake a valid checksum value
+    }
+    if (performed)
+        mbuf_set_csum_performed(m, performed, value);
+}
 
 #pragma mark --- interrupt functions ---
 
@@ -570,7 +586,7 @@ void ixgbe_irq_disable(struct ixgbe_adapter *adapter)
 }
 
 /**
- * ixgbe_update_itr - update the dynamic ITR value based on statistics
+ * ixgbe_update_rx_itr - update the dynamic ITR value based on statistics
  * @q_vector: structure containing interrupt and ring information
  *
  *      Stores a new ITR value based on packets and byte
@@ -581,7 +597,7 @@ void ixgbe_irq_disable(struct ixgbe_adapter *adapter)
  *      on testing data as well as attempting to minimize response time
  *      while increasing bulk throughput.
  **/
-void ixgbe_update_itr(struct ixgbeQueueVector *vector)
+void ixgbe_update_rx_itr(struct ixgbeQueueVector *vector)
 {
     unsigned int itr = IXGBE_ITR_ADAPTIVE_MIN_USECS |
                IXGBE_ITR_ADAPTIVE_LATENCY;
@@ -753,6 +769,109 @@ clear_counts:
 }
 
 /**
+ * ixgbe_update_tx_itr - update the dynamic ITR value based on statistics
+ * @q_vector: structure containing interrupt and ring information
+ *
+ *      Stores a new ITR value based on packets and byte
+ *      counts during the last interrupt.  The advantage of per interrupt
+ *      computation is faster updates and more accurate ITR for the current
+ *      traffic pattern.  Constants in this function were computed
+ *      based on theoretical maximum wire speed and thresholds were set based
+ *      on testing data as well as attempting to minimize response time
+ *      while increasing bulk throughput.
+ **/
+void ixgbe_update_tx_itr(struct ixgbeQueueVector *vector)
+{
+    unsigned int itr = (vector->itr >> 2);
+    unsigned int packets, bytes;
+    u64 nextUpdate = 0;
+
+    clock_get_uptime(&nextUpdate);
+
+    /* If we didn't update within up to 1 - 2 jiffies we can assume
+     * that either packets are coming in so slow there hasn't been
+     * any work, or that there is so much work that NAPI is dealing
+     * with interrupt moderation and we don't need to do anything.
+     */
+    if (nextUpdate > vector->nextUpdate)
+        goto clear_counts;
+
+    packets = vector->totalPackets;
+    bytes = vector->totalBytes;
+
+#ifdef DEBUG
+    if (packets > vector->maxPackets) {
+        vector->maxPackets = packets;
+    }
+    if (bytes > vector->maxBytes) {
+        vector->maxBytes = bytes;
+    }
+#endif
+    /* If packets are less than 4 or bytes are less than 9000 assume
+     * insufficient data to use bulk rate limiting approach. We use
+     * the default value for the link speed.
+     */
+    if (packets < 4 && bytes < 9000) {
+        switch (vector->adapter->link_speed) {
+            case IXGBE_LINK_SPEED_1GB_FULL:
+                itr = 123;
+                break;
+                
+            case IXGBE_LINK_SPEED_100_FULL:
+                itr = 19;
+                break;
+                
+            default:
+                itr = 72;
+                break;
+        }
+        goto clear_counts;
+    }
+
+    /* Between 4 and 48 we can assume that our current interrupt delay
+     * is only slightly too low. As such we should increase it by a small
+     * fixed amount.
+     */
+    if (packets < 48) {
+        itr += IXGBE_ITR_ADAPTIVE_MIN_INC;
+        
+        if (itr > IXGBE_ITR_ADAPTIVE_MAX_USECS)
+            itr = IXGBE_ITR_ADAPTIVE_MAX_USECS;
+        goto clear_counts;
+    }
+
+    /* Between 48 and 96 is our "goldilocks" zone where we are working
+     * out "just right". Just report that our current ITR is good for us.
+     */
+    if (packets < 96) {
+        goto clear_counts;
+    }
+
+    /* If packet count is 96 or greater we are likely looking at a slight
+     * overrun of the delay we want. Try halving our delay to see if that
+     * will cut the number of packets in half per interrupt.
+     */
+    if (packets < 256) {
+        itr = vector->itr >> 3;
+        
+        if (itr < IXGBE_ITR_ADAPTIVE_MIN_USECS)
+            itr = IXGBE_ITR_ADAPTIVE_MIN_USECS;
+        goto clear_counts;
+    }
+    itr = IXGBE_ITR_ADAPTIVE_MIN_USECS;
+
+clear_counts:
+    /* write back value */
+    vector->newItr = itr;
+
+    /* next update should occur within next jiffy */
+    vector->nextUpdate = nextUpdate + vector->updatePeriod;
+
+    vector->totalBytes = 0;
+    vector->totalPackets = 0;
+}
+
+/**
  * ixgbe_write_eitr - write EITR register in hardware specific way
  * @q_vector: structure containing interrupt and ring information
  *
@@ -791,13 +910,32 @@ void ixgbe_write_eitr(struct ixgbeQueueVector *vector)
     IXGBE_WRITE_REG(hw, IXGBE_EITR(v_idx), itr_reg);
 }
 
-void ixgbe_set_itr(struct ixgbeQueueVector *vector)
+void ixgbe_set_rx_itr(struct ixgbeQueueVector *vector)
 {
     u32 new_itr;
 
-    ixgbe_update_itr(vector);
+    ixgbe_update_rx_itr(vector);
 
-    /* use the smallest value of new ITR delay calculations */
+    new_itr = vector->newItr;
+
+    /* Clear latency flag if set, shift into correct position */
+    new_itr &= ~IXGBE_ITR_ADAPTIVE_LATENCY;
+    new_itr <<= 2;
+
+    if (new_itr != vector->itr) {
+        /* save the algorithm value here */
+        vector->itr = new_itr;
+
+        ixgbe_write_eitr(vector);
+    }
+}
+
+void ixgbe_set_tx_itr(struct ixgbeQueueVector *vector)
+{
+    u32 new_itr;
+
+    ixgbe_update_tx_itr(vector);
+
     new_itr = vector->newItr;
 
     /* Clear latency flag if set, shift into correct position */

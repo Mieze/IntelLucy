@@ -128,9 +128,10 @@ void IntelLucy::getParams()
         
         if (buf4k != NULL) {
             use4kRxBuf = buf4k->getValue();
-            rxBufferPktSize = (use4kRxBuf || enableRSC) ? kRxBufferPktSize4K : kRxBufferPktSize2K;
+            rxBufferPktSize = (use4kRxBuf || enableRSC || useAppleVTD) ?
+                kRxBufferPktSize4K : kRxBufferPktSize2K;
         } else {
-            use4kRxBuf = false;
+            use4kRxBuf = true;
         }
         IOLog("4KB receive buffers %s.\n", use4kRxBuf ? onName : offName);
 
@@ -139,42 +140,42 @@ void IntelLucy::getParams()
         if (tv != NULL) {
             interval = tv->unsigned32BitValue();
             
-            if (interval > 100)
-                pollTime10G = 100000;
-            else if (interval < 10)
-                pollTime10G = 10000;
+            if (interval > 120)
+                pollTime10G = 120000;
+            else if (interval < 25)
+                pollTime10G = 25000;
             else
                 pollTime10G = interval * 1000;
         } else {
-            pollTime10G = 50000;
+            pollTime10G = 100000;
         }
         tv = OSDynamicCast(OSNumber, params->getObject(kPollTime5GName));
 
         if (tv != NULL) {
             interval = tv->unsigned32BitValue();
             
-            if (interval > 125)
-                pollTime5G = 125000;
-            else if (interval < 75)
-                pollTime5G = 75000;
+            if (interval > 200)
+                pollTime5G = 200000;
+            else if (interval < 100)
+                pollTime5G = 100000;
             else
                 pollTime5G = interval * 1000;
         } else {
-            pollTime5G = 75000;
+            pollTime5G = 120000;
         }
         tv = OSDynamicCast(OSNumber, params->getObject(kPollTime2GName));
 
         if (tv != NULL) {
             interval = tv->unsigned32BitValue();
             
-            if (interval > 175)
-                pollTime2G = 175000;
+            if (interval > 200)
+                pollTime2G = 200000;
             else if (interval < 100)
                 pollTime2G = 100000;
             else
                 pollTime2G = interval * 1000;
         } else {
-            pollTime2G = 110000;
+            pollTime2G = 120000;
         }
         tv = OSDynamicCast(OSNumber, params->getObject(kRxItrTimeName));
 
@@ -198,11 +199,11 @@ void IntelLucy::getParams()
             if (interval > IXGBE_ITR_ADAPTIVE_MAX_USECS)
                 txThrottleTime = IXGBE_ITR_ADAPTIVE_MAX_USECS;
             else if (interval < IXGBE_ITR_ADAPTIVE_MIN_USECS)
-                txThrottleTime = IXGBE_ITR_ADAPTIVE_MIN_USECS;
+                txThrottleTime = 0;
             else
                 txThrottleTime = interval & 0xfe;
         } else {
-            txThrottleTime = 60;
+            txThrottleTime = 70;
         }
     } else {
         /* Use default values in case of missing config data. */
@@ -211,11 +212,12 @@ void IntelLucy::getParams()
         enableASPM = false;
         enableRSC = false;
         rxBufferPktSize = kRxBufferPktSize2K;
-        pollTime10G = 55000;
+        pollTime10G = 60000;
         pollTime5G = 90000;
         pollTime2G = 110000;
+
         rxThrottleTime = 30;
-        txThrottleTime = 60;
+        txThrottleTime = 70;
     }
     /* Fix features. */
     if (((rxThrottleTime < IXGBE_MIN_RSC_ITR) && (rxThrottleTime > 0)) ||
@@ -430,7 +432,6 @@ void IntelLucy::medium2Advertise(const IONetworkMedium *medium, UInt32 *adv, UIn
 
 bool IntelLucy::initEventSources(IOService *provider)
 {
-    IOReturn intrResult;
     int msiIndex = -1;
     int intrIndex = 0;
     int intrType = 0;
@@ -444,7 +445,7 @@ bool IntelLucy::initEventSources(IOService *provider)
     }
     txQueue->retain();
     
-    while ((intrResult = pciDevice->getInterruptType(intrIndex, &intrType)) == kIOReturnSuccess) {
+    while (pciDevice->getInterruptType(intrIndex, &intrType) == kIOReturnSuccess) {
         if (intrType & kIOInterruptTypePCIMessaged){
             msiIndex = intrIndex;
             break;
@@ -454,7 +455,11 @@ bool IntelLucy::initEventSources(IOService *provider)
     if (msiIndex != -1) {
         DebugLog("MSI interrupt index: %d\n", msiIndex);
         
-        interruptSource = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventSource::Action, this, &IntelLucy::interruptOccurred), provider, msiIndex);
+        if (useAppleVTD) {
+            interruptSource = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventSource::Action, this, &IntelLucy::interruptOccurredVTD), provider, msiIndex);
+        } else {
+            interruptSource = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventSource::Action, this, &IntelLucy::interruptOccurred), provider, msiIndex);
+        }
     }
     if (!interruptSource) {
         IOLog("MSI interrupt could not be enabled.\n");
@@ -586,6 +591,8 @@ bool IntelLucy::setupDMADescriptors()
     /* Initialize rxDescArray. */
     bzero((void *)rxRing[0].rxDescArray, kRxDescMemSize);
     rxRing[0].rxCleanedCount = rxRing[0].rxNextDescIndex = 0;
+    rxRing[0].rxMapNextIndex = 0;
+
     rxRing[0].regIndex = 0;
 
     result = allocRxPool();
@@ -628,23 +635,24 @@ error_tx_prepare:
 
 bool IntelLucy::allocTxBufferInfo()
 {
-    struct ixgbeTxBufferInfo *m;
+    ixgbeTxBufferInfo *mb;
+    ixgbeTxMapInfo *mm;
     UInt32 i, j;
     bool result = false;
 
     /* Alloc ixgbeTxBufferInfo array. */
-    txBufArrayMem = IOMalloc(kTxBufArraySize);
-    m = (struct ixgbeTxBufferInfo *)txBufArrayMem;
+    txBufArrayMem = IOMallocZero(kTxBufArraySize);
+    mb = (struct ixgbeTxBufferInfo *)txBufArrayMem;
     
     if (!txBufArrayMem) {
-        IOLog("Couldn't alloc transmit buffer array.\n");
+        IOLog("Couldn't alloc tx buffer info array.\n");
         goto done;
     }
-    memset(txBufArrayMem, 0, kTxBufArraySize);
     
     for (i = 0; i < kNumTxRings; i++) {
-        txRing[i].txBufArray = m;
-        m += kTxBufArraySize;
+        txRing[i].txBufArray = mb;
+        txRing[i].txMapInfo = NULL;
+        mb += kTxBufArraySize;
     }
     for (i = 0; i < kNumTxRings; i++) {
         for (j = 0; j < kNumTxDesc; j++) {
@@ -653,56 +661,113 @@ bool IntelLucy::allocTxBufferInfo()
             txRing[i].txBufArray[j].packetBytes = 0;
         }
     }
+    if (useAppleVTD) {
+        txMapMem = IOMallocZero(kTxMapMemSize);
+        
+        if (!txMapMem) {
+            IOLog("Couldn't alloc memory for tx map.\n");
+            goto error;
+        }
+        mm = (struct ixgbeTxMapInfo *)txMapMem;
+        
+        for (i = 0; i < kNumTxRings; i++) {
+            txRing[i].txMapInfo = mm;
+            mm += kTxMapMemSize;
+        }
+        for (i = 0; i < kNumTxRings; i++) {
+            txRing[i].txMapInfo->txNextMem2Use = 0;
+            txRing[i].txMapInfo->txNextMem2Free = 0;
+            txRing[i].txMapInfo->txNumFreeMem = kNumTxMemDesc;
+        }
+    }
     result = true;
     
 done:
     return result;
+    
+error:
+    if (txBufArrayMem) {
+        IOFree(txBufArrayMem, kTxBufArraySize);
+        txBufArrayMem = NULL;
+    }
+    goto done;
+}
+
+void IntelLucy::freeTxBufferInfo()
+{
+    UInt32 i, j;
+    
+    if (txBufArrayMem) {
+        for (i = 0; i < kNumTxRings; i++) {
+            txRing[i].txBufArray = NULL;
+            txRing[i].txMapInfo = NULL;
+        }
+        IOFree(txBufArrayMem, kTxBufArraySize);
+        txBufArrayMem = NULL;
+    }
+    if (txMapMem) {
+        for (i = 0; i < kNumTxRings; i++) {
+            if (txRing[i].txMapInfo) {
+                for (j = 0; j < kNumTxMemDesc; j++) {
+                    if (txRing[i].txMapInfo->txMemIO[j]) {
+                        txRing[i].txMapInfo->txMemIO[j]->complete();
+                        txRing[i].txMapInfo->txMemIO[j]->release();
+                        txRing[i].txMapInfo->txMemIO[j] = NULL;
+                    }
+                }
+            }
+        }
+        IOFree(txMapMem, kTxMapMemSize);
+        txMapMem = NULL;
+    }
 }
 
 bool IntelLucy::allocRxPool()
 {
+    IOPhysicalAddress64 pa = (IOPhysicalAddress64)NULL;
     mbuf_t m;
     struct ixgbeRxBufferInfo *rm;
     struct ixgbeRxRing *ring;
-    IOPhysicalAddress64 pa;
     void *va;
     UInt32 i, j;
     bool result = false;
         
     /* Alloc ixgbeRxBufferInfo array. */
-    rxBufArrayMem = IOMalloc(kRxBufMemSize * kNumRxRings);
+    rxBufArrayMem = IOMallocZero(kRxBufMemSize * kNumRxRings);
     rm = (struct ixgbeRxBufferInfo *)rxBufArrayMem;
     
     if (!rxBufArrayMem) {
         IOLog("Couldn't alloc receive buffer array.\n");
         goto done;
     }
-    memset(rxBufArrayMem, 0, kRxBufMemSize);
     
     for (i = 0; i < kNumRxRings; i++) {
         rxRing[i].rxBufArray = rm;
         rm += kRxBufArraySize;
     }
-    rxPool = IntelLucyRxPool::withCapacity(kRxPoolHdrCap, kRxPoolPktCap, rxBufferPktSize);
+    rxPool = IntelLucyRxPool::withCapacity(kRxPoolMbufCap, kRxPoolClstCap);
     
     if (!rxPool) {
         IOLog("Couldn't alloc receive buffer pool.\n");
         goto error_rx_buf;
     }
     
-    /* Alloc receive buffers. */
+    /* Setup receive buffers. */
     for (j = 0; j < kNumRxRings; j++) {
         ring = &rxRing[j];
 
         for (i = 0; i < kNumRxDesc; i++) {
             m = rxPool->getPacket(rxBufferPktSize);
-                        
+            
             if (!m) {
                 IOLog("Couldn't get receive buffer from pool.\n");
                 goto error_rx_pool;
             }
             va = mbuf_datastart(m);
-            pa = mbuf_data_to_physical(va);
+            
+            if (!useAppleVTD) {
+                pa = mbuf_data_to_physical(va);
+            }
             
             /* We have to keep the physical address of the buffer too
              * as descriptor write back overwrites it in the descriptor
@@ -714,19 +779,13 @@ bool IntelLucy::allocRxPool()
             
             ring->rxDescArray[i].read.pkt_addr = OSSwapHostToLittleInt64(pa);
             ring->rxDescArray[i].read.hdr_addr = 0;
-            
-            /* Setup the ranges for the IOMemoryDescriptors. */
-            ring->rxBufArray[i].range.address = (IOVirtualAddress)va;
-            ring->rxBufArray[i].range.length = rxBufferPktSize;
         }
     }
     if (useAppleVTD)
-        result = allocRxDMAMap();
+        result = setupRxMap();
     else
         result = true;
-    
-    rxPool->refillPool();
-        
+            
 done:
     return result;
             
@@ -743,8 +802,6 @@ error_rx_buf:
                     mbuf_freem_list(ring->rxBufArray[i].mbuf);
                     ring->rxBufArray[i].mbuf = NULL;
                     ring->rxBufArray[i].phyAddr = 0;
-                    ring->rxBufArray[i].range.address = (IOVirtualAddress)NULL;
-                    ring->rxBufArray[i].range.length = 0;
                 }
             }
         }
@@ -754,128 +811,150 @@ error_rx_buf:
     goto done;
 }
 
-IOReturn IntelLucy::refillAction(OSObject *owner, void *arg1, void *arg2, void *arg3, void *arg4)
-{
-    IntelLucy *ethCtlr = OSDynamicCast(IntelLucy, owner);
-    
-    if (ethCtlr) {
-        ethCtlr->rxPool->refillPool();
-    }
-    return kIOReturnSuccess;
-}
-
 void IntelLucy::freeRxPool()
 {
     RELEASE(rxPool);
 }
 
-bool IntelLucy::allocRxDMAMap()
+bool IntelLucy::setupRxMap()
 {
-    struct ixgbeRxRing *ring;
-    struct ixgbeRxBufferInfo *rm;
+    ixgbeRxRing *ring;
+    ixgbeRxBufferInfo *bufInfo;
+    ixgbeRxMapInfo *mi;
     IOMemoryDescriptor *md;
-    UInt32 i, j;
+    IOPhysicalAddress pa;
+    IOByteCount offset;
+    UInt32 end;
+    UInt32 i, j, n, idx;
     bool result = false;
 
+    callEntry = thread_call_allocate_with_options((thread_call_func_t) &rxRunWorkThread, (void *) this, THREAD_CALL_PRIORITY_KERNEL, 0);
+    
+    if (!callEntry) {
+        IOLog("Couldn't alloc thread_call.\n");
+        goto done;
+    }
+
+    /* Alloc ixgbeRxBufferInfo. */
+    rxMapMem = IOMallocZero(kRxMapMemSize);
+    mi = (ixgbeRxMapInfo *)rxMapMem;
+    
+    if (!rxMapMem) {
+        IOLog("Couldn't alloc rx map.\n");
+        goto error_mem;
+    }
+
+    for (i = 0; i < kNumRxRings; i++) {
+        rxRing[i].rxMapInfo = mi;
+        mi += sizeof(ixgbeRxMapInfo);
+    }
+    
+    /* Setup Ranges for IOMemoryDescriptors. */
+    for (j = 0; j < kNumRxRings; j++) {
+        ring = &rxRing[j];
+        mi = ring->rxMapInfo;
+        
+        for (i = 0; i < kNumRxDesc; i++) {
+            mi->rxMemRange[i].address = (IOVirtualAddress)mbuf_datastart(ring->rxBufArray[i].mbuf);
+            mi->rxMemRange[i].length = PAGE_SIZE;
+        }
+    }
     /* Alloc IOMemoryDescriptors. */
     for (j = 0; j < kNumRxRings; j++) {
         ring = &rxRing[j];
+        bufInfo = ring->rxBufArray;
+        mi = ring->rxMapInfo;
 
-        for (i = 0; i < kNumRxDesc; i++) {
-            md = IOMemoryDescriptor::withOptions(&ring->rxBufArray[i].range, 1, 0, kernel_task, kIOMemoryTypeVirtual | kIODirectionIn | kIOMemoryAsReference, mapper);
+        for (i = 0, idx = 0; i < kNumRxMemDesc; i++, idx += kRxMemBatchSize) {
+            md = IOMemoryDescriptor::withOptions(&mi->rxMemRange[idx], kRxMemBatchSize, 0, kernel_task, (kIOMemoryTypeVirtual | kIODirectionIn | kIOMemoryAsReference), mapper);
             
             if (!md) {
-                IOLog("Couldn't alloc IOMemoryDescriptor (i=%d).\n", i);
-                goto error_rx_map;
+                IOLog("Couldn't alloc IOMemoryDescriptor.\n");
+                goto error_rx_desc;
             }
+            if (md->prepare() != kIOReturnSuccess) {
+                IOLog("IOMemoryDescriptor::prepare() failed.\n");
+                goto error_prep;
+            }
+            mi->rxMemIO[i] = md;
+            offset = 0;
+            end = idx + kRxMemBatchSize;
             
-            if (md->prepare()) {
-                IOLog("Failed to prepare IOMemoryDescriptor.\n");
-                md->complete();
-                RELEASE(md);
-                goto error_rx_map;
+            for (n = idx; n < end; n++) {
+                pa = md->getPhysicalSegment(offset, NULL);
+
+                bufInfo[n].phyAddr = pa;
+                ring->rxDescArray[n].read.pkt_addr = OSSwapHostToLittleInt64(pa);
+
+                offset += PAGE_SIZE;
             }
-            ring->rxBufArray[i].phyAddr = md->getPhysicalAddress();
-            ring->rxBufArray[i].ioMemDesc = md;
         }
     }
     result = true;
     
 done:
     return result;
-    
-error_rx_map:
-    if (rxBufArrayMem) {
+            
+error_prep:
+    md->complete();
+    RELEASE(md);
+
+error_rx_desc:
+    if (rxMapMem) {
         for (j = 0; j < kNumRxRings; j++) {
             ring = &rxRing[j];
+            mi = ring->rxMapInfo;
 
-            for (i = 0; i < kNumRxDesc; i++) {
-                rm = &ring->rxBufArray[i];
-                md = rm->ioMemDesc;
-                
+            for (i = 0; i < kNumRxMemDesc; i++) {
+                md = mi->rxMemIO[i];
+                                
                 if (md) {
                     md->complete();
                     md->release();
                 }
-                rm->ioMemDesc = NULL;
+                mi->rxMemIO[i] = NULL;
             }
         }
+        IOFree(rxMapMem, kRxMapMemSize);
+        rxMapMem = NULL;
     }
+
+error_mem:
+    thread_call_free(callEntry);
     goto done;
 }
 
-void IntelLucy::freeRxDMAMap()
+void IntelLucy::freeRxMap()
 {
-    struct ixgbeRxRing *ring;
-    struct ixgbeRxBufferInfo *rm;
+    ixgbeRxRing *ring;
+    ixgbeRxMapInfo *mi;
     IOMemoryDescriptor *md;
     UInt32 i, j;
 
-    if (rxBufArrayMem) {
+    if (rxMapMem) {
         for (j = 0; j < kNumRxRings; j++) {
             ring = &rxRing[j];
+            mi = ring->rxMapInfo;
 
-            for (i = 0; i < kNumRxDesc; i++) {
-                rm = &ring->rxBufArray[i];
-                md = rm->ioMemDesc;
-                
+            for (i = 0; i < kNumRxMemDesc; i++) {
+                md = mi->rxMemIO[i];
+                                
                 if (md) {
                     md->complete();
                     md->release();
                 }
-                rm->ioMemDesc = NULL;
-                rm->range.address = (IOVirtualAddress)NULL;
-                rm->range.length = 0;
+                mi->rxMemIO[i] = NULL;
             }
         }
+        IOFree(rxMapMem, kRxMapMemSize);
+        rxMapMem = NULL;
     }
-}
-
-IOPhysicalAddress IntelLucy::replaceRxDMAMap(struct ixgbeRxBufferInfo *bufferInfo, IOVirtualAddress virtAddr)
-{
-    IOPhysicalAddress pa = (IOPhysicalAddress)NULL;
-    IOMemoryDescriptor *md;
-    bool result;
-    
-    if (bufferInfo && virtAddr) {
-        md = bufferInfo->ioMemDesc;
-        md->complete();
-        
-        bufferInfo->range.address = virtAddr;
-        result = md->initWithOptions(&bufferInfo->range, 1, 0, kernel_task, kIOMemoryTypeVirtual | kIODirectionIn | kIOMemoryAsReference, mapper);
-        
-        if (!result) {
-            IOLog("Failed to reinit IOMemoryDescriptor.\n");
-            goto done;
-        }
-        if (md->prepare()) {
-            IOLog("Failed to prepare IOMemoryDescriptor.\n");
-            md->complete();
-        }
-        pa = md->getPhysicalAddress();
+    if (callEntry) {
+        thread_call_cancel(callEntry);
+        IOSleep(1);
+        thread_call_free(callEntry);
+        callEntry = NULL;
     }
-done:
-    return pa;
 }
 
 void IntelLucy::freeDMADescriptors()
@@ -883,37 +962,34 @@ void IntelLucy::freeDMADescriptors()
     struct ixgbeRxRing *ring;
     UInt32 i, j;
     
+    if (txDescDmaCmd) {
+        txDescDmaCmd->clearMemoryDescriptor(true);
+        txDescDmaCmd->release();
+        txDescDmaCmd = NULL;
+    }
     if (txBufDesc) {
         txBufDesc->complete();
         txBufDesc->release();
         txBufDesc = NULL;
         txPhyAddr = 0;
     }
-    if (txDescDmaCmd) {
-        txDescDmaCmd->clearMemoryDescriptor();
-        txDescDmaCmd->release();
-        txDescDmaCmd = NULL;
-    }
     RELEASE(txMbufCursor);
-    
+
+    if (rxDescDmaCmd) {
+        rxDescDmaCmd->clearMemoryDescriptor(true);
+        rxDescDmaCmd->release();
+        rxDescDmaCmd = NULL;
+    }
     if (rxBufDesc) {
         rxBufDesc->complete();
         rxBufDesc->release();
         rxBufDesc = NULL;
         rxPhyAddr = 0;
     }
-    if (rxDescDmaCmd) {
-        rxDescDmaCmd->clearMemoryDescriptor();
-        rxDescDmaCmd->release();
-        rxDescDmaCmd = NULL;
-    }    
-    if (txBufArrayMem) {
-        IOFree(txBufArrayMem, kTxBufMemSize);
-        txRing[0].txBufArray = NULL;
-        txBufArrayMem = NULL;
-    }
+    freeTxBufferInfo();
+
     if (useAppleVTD)
-        freeRxDMAMap();
+        freeRxMap();
     
     if (rxBufArrayMem) {
         for (j = 0; j < kNumRxRings; j++) {
@@ -965,12 +1041,15 @@ void IntelLucy::ixgbeSetupQueueVectors(struct ixgbe_adapter *adapter)
         v->adapter = adapter;
         v->updatePeriod = itrUpdatePeriod;
         v->vIndex = idx;
-        v->itr = IXGBE_20K_ITR;
-        
+        v->itr = IXGBE_12K_ITR;
+#ifdef DEBUG
+        v->maxBytes = 0;
+        v->maxPackets = 0;
+#endif
         if (adapter->tx_itr_setting == 1) {
             set_ring_adaptive(&txRing[i]);
 
-            v->itr = IXGBE_20K_ITR;
+            v->itr = IXGBE_12K_ITR;
             v->newItr = (IXGBE_ITR_ADAPTIVE_MAX_USECS |
                          IXGBE_ITR_ADAPTIVE_LATENCY);
         } else {

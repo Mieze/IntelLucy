@@ -145,6 +145,7 @@ void IntelLucy::ixgbeConfigureRxRing(struct ixgbe_adapter *adapter,
                                      struct ixgbeRxRing *ring)
 {
     struct ixgbe_hw *hw = &adapter->hw;
+    UInt32 maxRsc = IXGBE_RSCCTL_MAXDESC_8;
     UInt32 rxdctl;
     UInt8 regIdx = ring->regIndex;
 
@@ -157,6 +158,7 @@ void IntelLucy::ixgbeConfigureRxRing(struct ixgbe_adapter *adapter,
     IXGBE_WRITE_FLUSH(hw);
 
     ring->rxCleanedCount = ring->rxNextDescIndex = 0;
+    ring->rxMapNextIndex = 0;
     
     IXGBE_WRITE_REG(hw, IXGBE_RDBAL(regIdx), (rxPhyAddr & 0xffffffff));
     IXGBE_WRITE_REG(hw, IXGBE_RDBAH(regIdx), (rxPhyAddr >> 32));
@@ -168,7 +170,23 @@ void IntelLucy::ixgbeConfigureRxRing(struct ixgbe_adapter *adapter,
     IXGBE_WRITE_REG(hw, IXGBE_RDT(regIdx), 0);
 
     ixgbeConfigureSrrctl(adapter);
-    ixgbe_configure_rscctl(adapter, ring);
+    
+    if (hw->mac.type == ixgbe_mac_X550) {
+        const IONetworkMedium *med = getSelectedMedium();
+        UInt32 speed, fc;
+        
+        if (med) {
+            medium2Advertise(med, &speed, &fc);
+
+           if (speed & IXGBE_LINK_SPEED_5GB_FULL)
+               maxRsc = (mtu > 4076) ? IXGBE_RSCCTL_MAXDESC_4 : IXGBE_RSCCTL_MAXDESC_1;
+           else if (speed & IXGBE_LINK_SPEED_2_5GB_FULL)
+               maxRsc = IXGBE_RSCCTL_MAXDESC_1;
+           else
+               maxRsc = IXGBE_RSCCTL_MAXDESC_8;
+        }
+    }
+    ixgbe_configure_rscctl(adapter, ring, maxRsc);
 
     if (hw->mac.type == ixgbe_mac_82598EB) {
         /*
@@ -447,7 +465,13 @@ void IntelLucy::ixgbeClearRxRings(struct ixgbe_adapter *adapter)
             }
         }
         ring->rxCleanedCount = ring->rxNextDescIndex = 0;
-        
+        ring->rxMapNextIndex = 0;
+
+        if (useAppleVTD) {
+            thread_call_cancel(callEntry);
+            IOSleep(1);
+            rxMapBuffers(ring, 0, kNumRxMemDesc, kRingUpdNone);
+        }
         /*
          * Also free packet fragments which haven't
          * been upstreamed yet.
@@ -725,13 +749,16 @@ void IntelLucy::ixgbeClearTxPending(struct ixgbe_hw *hw)
 void IntelLucy::ixgbeClearTxRings(struct ixgbe_adapter *adapter)
 {
     struct ixgbeTxRing *ring;
+    struct ixgbeTxMapInfo *mapInfo;
+    IOMemoryDescriptor *md;
     mbuf_t m;
     UInt32 i, j;
     
     /* Cleanup the tx descriptor ring. */
     for (j = 0; j < adapter->num_tx_queues; j++) {
         ring = &txRing[j];
-        
+        mapInfo = ring->txMapInfo;
+
         for (i = 0; i < kNumTxDesc; i++) {
             m = ring->txBufArray[i].mbuf;
             
@@ -739,10 +766,26 @@ void IntelLucy::ixgbeClearTxRings(struct ixgbe_adapter *adapter)
                 mbuf_freem_list(m);
                 ring->txBufArray[i].mbuf = NULL;
                 ring->txBufArray[i].numDescs = 0;
+                ring->txBufArray[i].packetBytes = 0;
+            }
+        }
+        if (useAppleVTD) {
+            for (i = 0; i < kNumTxMemDesc; i++) {
+                md = mapInfo->txMemIO[i];
+                
+                if (md && (md->getTag() == kIOMemoryActive)) {
+                    md->complete();
+                    md->setTag(kIOMemoryInactive);
+                }
             }
         }
         ring->txNextDescIndex = ring->txDirtyIndex = ring->txCleanBarrierIndex = 0;
         ring->txNumFreeDesc = kNumTxDesc;
+        
+        if (mapInfo) {
+            mapInfo->txNextMem2Use = mapInfo->txNextMem2Free = 0;
+            mapInfo->txNumFreeMem = kNumTxMemDesc;
+        }
     }
 }
 

@@ -34,6 +34,10 @@ struct ixgbeQueueVector {
     UInt16 itr;             /* current ITR setting for ring */
     UInt16 newItr;          /* new ITR setting for ring in adaptive mode */
     UInt16 pad;
+#ifdef DEBUG
+    SInt32 maxBytes;
+    SInt32 maxPackets;
+#endif
 };
 
 struct ip4_hdr_be {
@@ -81,7 +85,7 @@ void ixgbe_sync_mac_table(struct ixgbe_adapter *adapter);
 void ixgbe_clear_mac_table(struct ixgbe_adapter *adapter);
 void ixgbe_init_mac_table(struct ixgbe_adapter *adapter);
 int ixgbe_update_mac_table(struct ixgbe_adapter *adapter, u8 *addrs,
-                           UInt32 count);
+                           u32 count);
 
 void ixgbe_set_mta(struct ixgbe_hw *hw, u8 *mc_addr);
 
@@ -94,10 +98,11 @@ void ixgbe_vlan_promisc_enable(struct ixgbe_adapter *adapter);
 /* Rx support functions*/
 void ixgbe_setup_psrtype(struct ixgbe_adapter *adapter);
 void ixgbe_configure_rscctl(struct ixgbe_adapter *adapter,
-                            struct ixgbeRxRing *ring);
+                            struct ixgbeRxRing *ring, u32 maxDesc);
 void ixgbe_rx_desc_queue_enable(struct ixgbe_adapter *adapter);
 void ixgbe_setup_rdrxctl(struct ixgbe_adapter *adapter);
 void ixgbe_setup_mrqc(struct ixgbe_adapter *adapter);
+void ixgbe_get_checksum_result(mbuf_t m, UInt32 status);
 
 /* interrupt functions */
 inline void ixgbe_irq_enable_queues(struct ixgbe_adapter *adapter,
@@ -105,9 +110,11 @@ inline void ixgbe_irq_enable_queues(struct ixgbe_adapter *adapter,
 void ixgbe_irq_enable(struct ixgbe_adapter *adapter, u64 qmask,
                                     bool flush);
 void ixgbe_irq_disable(struct ixgbe_adapter *adapter);
-void ixgbe_update_itr(struct ixgbeQueueVector *vector);
+void ixgbe_update_rx_itr(struct ixgbeQueueVector *vector);
+void ixgbe_update_tx_itr(struct ixgbeQueueVector *vector);
 void ixgbe_write_eitr(struct ixgbeQueueVector *vector);
-void ixgbe_set_itr(struct ixgbeQueueVector *vector);
+void ixgbe_set_rx_itr(struct ixgbeQueueVector *vector);
+void ixgbe_set_tx_itr(struct ixgbeQueueVector *vector);
 
 /* RSS functions */
 u32 ixgbe_rss_indir_tbl_entries(struct ixgbe_adapter *adapter);

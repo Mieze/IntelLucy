@@ -125,6 +125,7 @@ bool IntelLucy::init(OSDictionary *properties)
             txRing[i].state = 0;
         }
         txBufArrayMem = NULL;
+        txMapMem = NULL;
         
         for (i = 0; i < kNumRxRings; i++) {
             rxRing[i].rxPacketHead = NULL;
@@ -164,9 +165,10 @@ bool IntelLucy::init(OSDictionary *properties)
         nanoseconds_to_absolutetime(kTimeout2Gns, &hangTimeout);
         nanoseconds_to_absolutetime(kTimespan4ms, &itrUpdatePeriod);
         nanoseconds_to_absolutetime(kLinkStableTime, &linkStableTresh);
+        nanoseconds_to_absolutetime(kMapDelayTime, &callDelay);
         linkUptime = 0;
         rxThrottleTime = 30;
-        txThrottleTime = 60;
+        txThrottleTime = 70;
         
         /*
          * Select maximum interrupt latency based on
@@ -543,7 +545,7 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
         DebugLog("Ethernet Interface down. Dropping packets.\n");
         goto done;
     }
-    while ((txRing[0].txNumFreeDesc >= (kMaxSegs + kTxSpareDescs)) && (interface->dequeueOutputPackets(1, &m, NULL, NULL, &pktBytes) == kIOReturnSuccess)) {
+    while ((txRing[0].txNumFreeDesc >= kMinFreeDescs) && (interface->dequeueOutputPackets(1, &m, NULL, NULL, &pktBytes) == kIOReturnSuccess)) {
         numDescs = 0;
         cmdTypeLen = (IXGBE_TXD_CMD_DEXT | IXGBE_ADVTXD_DTYP_DATA | IXGBE_ADVTXD_DCMD_IFCS);
         olInfoStatus = IXGBE_ADVTXD_CC;
@@ -669,7 +671,11 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
             vlanMacipLens |= ((vlanTag << IXGBE_TX_FLAGS_VLAN_SHIFT) & IXGBE_TX_FLAGS_VLAN_MASK);
         }
         /* Finally get the physical segments. */
-        numSegs = txMbufCursor->getPhysicalSegmentsWithCoalesce(m, &txSegments[0], kMaxSegs);
+        if (useAppleVTD)
+            numSegs = txMapPacket(m, txSegments, kMaxSegs, &txRing[0]);
+        else
+            numSegs = txMbufCursor->getPhysicalSegmentsWithCoalesce(m, &txSegments[0], kMaxSegs);
+        
         numDescs += numSegs;
         
         if (!numSegs) {
@@ -749,7 +755,6 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
                     txRing[0].txBufArray[index].numDescs = 0;
                     txRing[0].txBufArray[index].packetBytes = 0;
                 }
-                
                 desc->read.buffer_addr = OSSwapHostToLittleInt64(txSegments[i].location);
                 desc->read.cmd_type_len = OSSwapHostToLittleInt32(cmd);
                 desc->read.olinfo_status = OSSwapHostToLittleInt32(ois);
@@ -763,7 +768,7 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
         IXGBE_WRITE_REG(&adapterData.hw, IXGBE_TDT(0), txRing[0].txNextDescIndex);
         txRing[0].txCleanBarrierIndex = txRing[0].txNextDescIndex;
     }
-    result = (txRing[0].txNumFreeDesc >= (kMaxSegs + kTxSpareDescs)) ? kIOReturnSuccess : kIOReturnNoResources;
+    result = (txRing[0].txNumFreeDesc >= kMinFreeDescs) ? kIOReturnSuccess : kIOReturnNoResources;
     
     //DebugLog("outputStart() <===\n");
     
@@ -1202,10 +1207,13 @@ void IntelLucy::txCleanRing(struct ixgbeTxRing *ring)
             if (!(descStatus & IXGBE_TXD_STAT_DD))
                 goto done;
             
+            if (useAppleVTD)
+                txUnmapPacket(ring);
+            
             /* First free the attached mbuf and clean up the buffer info. */
             freePacket(bufInfo->mbuf, kDelayFree);
             bufInfo->mbuf = NULL;
-            
+
             cleaned = bufInfo->numDescs;
             bytes += bufInfo->packetBytes;
             packets += cleaned;
@@ -1278,7 +1286,7 @@ UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing 
             goto error_drop;
         }
         newPkt = rxPool->replaceOrCopyPacket(&bufPkt, pktSize, &replaced);
-        
+
         if (!newPkt) {
             /*
              * No  packets available in the pool, so that we
@@ -1293,8 +1301,8 @@ handle_pkt:
         /* If the packet was replaced we have to update the descriptor's buffer address. */
         if (replaced) {
             if (mbuf_next(bufPkt) == NULL) {
-                virtAddr = mbuf_datastart(bufPkt);
-                phyAddr = useAppleVTD ? replaceRxDMAMap(bufInfo, (IOVirtualAddress)virtAddr) : mbuf_data_to_physical(virtAddr);
+                virtAddr = mbuf_data(bufPkt);
+                phyAddr = mbuf_data_to_physical(virtAddr);
             } else {
                 DebugLog("getPhysicalSegments() failed.\n");
                 etherStats->dot3RxExtraEntry.resourceErrors++;
@@ -1335,7 +1343,7 @@ handle_pkt:
                     mbuf_pkthdr_setlen(newPkt, pktSize);
                 }
             }
-            ixgbeGetChecksumResult(newPkt, status);
+            ixgbe_get_checksum_result(newPkt, status);
 
             /* Also get the VLAN tag if there is any. */
             if (vlanTag)
@@ -1501,16 +1509,14 @@ void IntelLucy::interruptOccurred(OSObject *client, IOInterruptEventSource *src,
      * Re-enable tx/rx interupts, provided we aren't in poll mode.
      */
     if (adapter->rx_itr_setting == 1)
-        ixgbe_set_itr(&rxRing[0].vector);
+        ixgbe_set_rx_itr(&rxRing[0].vector);
 
     if (adapter->tx_itr_setting == 1)
-        ixgbe_set_itr(&txRing[0].vector);
+        ixgbe_set_tx_itr(&txRing[0].vector);
 
     if (!test_bit(__IXGBE_DOWN, &adapter->state)) {
         ixgbe_irq_enable(adapter, qmask, false);
     }
-    if (packets)
-        rxPool->refillPool();
 }
 
 
@@ -1548,14 +1554,17 @@ void IntelLucy::pollInputPackets(IONetworkInterface *interface, uint32_t maxCoun
     //DebugLog("pollInputPackets() ===>\n");
     if (test_bit(__POLL_MODE, &stateFlags) &&
         !test_and_set_bit(__POLLING, &stateFlags)) {
-        rxCleanRing(interface, &rxRing[0], maxCount, pollQueue, context);
+        if (useAppleVTD)
+            rxCleanRingVTD(interface, &rxRing[0], maxCount, pollQueue, context);
+        else
+            rxCleanRing(interface, &rxRing[0], maxCount, pollQueue, context);
         
         /* Finally cleanup the transmitter ring. */
         txCleanRing(&txRing[0]);
         
         clear_bit(__POLLING, &stateFlags);
         
-        commandGate->runAction(refillAction);
+        //rxPool->refillPool();
     }
     
     //DebugLog("pollInputPackets() <===\n");
@@ -1585,25 +1594,16 @@ void IntelLucy::timerAction(IOTimerEventSource *timer)
 
         ixgbeServiceTask();
     }
+#ifdef DEBUG
+    if (test_bit(__LINK_UP, &stateFlags)) {
+        IOLog("Stats for en%u: maxBytes: %d, maxPackets: %d\n", netif->getUnitNumber(), (int)txRing[0].vector.maxBytes, (int)txRing[0].vector.maxPackets);
+    }
+    txRing[0].vector.maxBytes = 0;
+    txRing[0].vector.maxPackets = 0;
+#endif
 }
 
 #pragma mark --- other methods ---
-
-inline void IntelLucy::ixgbeGetChecksumResult(mbuf_t m, UInt32 status)
-{
-    mbuf_csum_performed_flags_t performed = 0;
-    UInt32 value = 0;
-
-    if ((status & (IXGBE_RXD_STAT_IPCS | IXGBE_RXDADV_ERR_IPE)) == IXGBE_RXD_STAT_IPCS)
-        performed |= (MBUF_CSUM_DID_IP | MBUF_CSUM_IP_GOOD);
-    
-    if ((status & (IXGBE_RXD_STAT_L4CS | IXGBE_RXDADV_ERR_TCPE)) == IXGBE_RXD_STAT_L4CS){
-        performed |= (MBUF_CSUM_DID_DATA | MBUF_CSUM_PSEUDO_HDR);
-        value = 0xffff; // fake a valid checksum value
-    }
-    if (performed)
-        mbuf_set_csum_performed(m, performed, value);
-}
 
 bool IntelLucy::ixgbeIdentifyChip()
 {
@@ -1632,16 +1632,7 @@ done:
 }
 
 #pragma mark --- miscellaneous functions ---
-/*
-static inline unsigned add32_with_carry(unsigned a, unsigned b)
-{
-    asm("addl %2,%0\n\t"
-        "adcl $0,%0"
-        : "=r" (a)
-        : "0" (a), "rm" (b));
-    return a;
-}
-*/
+
 static inline void prepareTSO4(mbuf_t m, UInt32 *ipLength, UInt32 *tcpLength, UInt32 *mss)
 {
     UInt8 *p = (UInt8 *)mbuf_data(m) + kMacHdrLen;

@@ -8,6 +8,8 @@
 #ifndef IntelLucyRxPool_hpp
 #define IntelLucyRxPool_hpp
 
+#define kRefillDelayTime  5000UL
+
 class IntelLucyRxPool : public OSObject
 {
     OSDeclareDefaultStructors(IntelLucyRxPool);
@@ -18,32 +20,37 @@ public:
     virtual void free() APPLE_KEXT_OVERRIDE;
     
     virtual bool initWithCapacity(UInt32 mbufCapacity,
-                                  UInt32 clustCapacity,
-                                  UInt32 size);
+                                  UInt32 clustCapacity);
 
     static IntelLucyRxPool * withCapacity(UInt32 mbufCapacity,
-                                          UInt32 clustCapacity,
-                                          UInt32 size);
+                                          UInt32 clustCapacity);
 
     virtual mbuf_t getPacket(UInt32 size);
 
-    virtual void refillPool();
     
     mbuf_t replaceOrCopyPacket(mbuf_t *mp,
                                UInt32 len,
                                bool * replaced);
     
 protected:
+    void refillPool();
+
+    static void refillThread(thread_call_param_t param0);
+
+    thread_call_t refillCE;
+    UInt64 refillDelay;
     mbuf_t cPktHead;
     mbuf_t cPktTail;
     mbuf_t mPktHead;
     mbuf_t mPktTail;
     UInt32 cCapacity;
+    UInt32 cRefillTresh;
     SInt32 cPktNum;
     UInt32 mCapacity;
+    UInt32 mRefillTresh;
     SInt32 mPktNum;
-    UInt32 cSize;
     UInt32 maxCopySize;
+    bool refillScheduled;
 };
 
 #endif /* IntelLucyRxPool_hpp */
