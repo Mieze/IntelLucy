@@ -1254,7 +1254,6 @@ UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing 
     struct ixgbe_hw *hw = &adapterData.hw;
     struct ixgbeRxBufferInfo *bufInfo;
     IOPhysicalAddress64 phyAddr;
-    void *virtAddr;
     mbuf_t bufPkt, newPkt;
     UInt32 pktCnt = 0;
     UInt32 pktBytes = 0;
@@ -1289,7 +1288,7 @@ UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing 
 
         if (!newPkt) {
             /*
-             * No  packets available in the pool, so that we
+             * No packets available in the pool, so that we
              * must leave the original packet in place as a
              * last resort.
              */
@@ -1300,15 +1299,13 @@ UInt32 IntelLucy::rxCleanRing(IONetworkInterface *interface, struct ixgbeRxRing 
 handle_pkt:
         /* If the packet was replaced we have to update the descriptor's buffer address. */
         if (replaced) {
-            if (mbuf_next(bufPkt) == NULL) {
-                virtAddr = mbuf_data(bufPkt);
-                phyAddr = mbuf_data_to_physical(virtAddr);
-            } else {
+            if (mbuf_next(bufPkt) != NULL) {
                 DebugLog("getPhysicalSegments() failed.\n");
                 etherStats->dot3RxExtraEntry.resourceErrors++;
                 mbuf_freem_list(bufPkt);
                 goto error_drop;
             }
+            phyAddr = mbuf_data_to_physical(mbuf_data(bufPkt));
             bufInfo->mbuf = bufPkt;
             bufInfo->phyAddr = phyAddr;
         }

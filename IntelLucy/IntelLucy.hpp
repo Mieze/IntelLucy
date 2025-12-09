@@ -504,7 +504,7 @@ private:
     void freeRxPool();
     bool setupRxMap();
     void freeRxMap();
-    UInt16 rxMapBuffers(struct ixgbeRxRing *ring, UInt16 index, UInt16 count, UInt16 updateType);
+    UInt16 rxMapBuffers(struct ixgbeRxRing *ring, UInt16 index, UInt16 count, bool update);
 
     /* Methods for delayed mapping of rx buffers */
     void rxWorkThread(UInt64 work);

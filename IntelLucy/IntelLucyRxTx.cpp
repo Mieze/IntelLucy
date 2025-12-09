@@ -470,7 +470,7 @@ void IntelLucy::ixgbeClearRxRings(struct ixgbe_adapter *adapter)
         if (useAppleVTD) {
             thread_call_cancel(callEntry);
             IOSleep(1);
-            rxMapBuffers(ring, 0, kNumRxMemDesc, kRingUpdNone);
+            rxMapBuffers(ring, 0, kNumRxMemDesc, false);
         }
         /*
          * Also free packet fragments which haven't

@@ -251,7 +251,11 @@ mbuf_t IntelLucyRxPool::replaceOrCopyPacket(mbuf_t *mp,
          */
         if (len > maxCopySize) {
             m = *mp;
-            *mp = getPacket(len);
+            
+            if ((*mp = getPacket(len)) == NULL) {
+                *mp = m;
+                m = NULL;
+            }
             *replaced = true;
         } else {
             /*

@@ -265,7 +265,7 @@ void IntelLucy::txUnmapPacket(struct ixgbeTxRing *ring)
  * @result      The index of the next batch to map.
  */
 UInt16 IntelLucy::rxMapBuffers(struct ixgbeRxRing *ring, UInt16 index,
-                               UInt16 count, UInt16 updateType)
+                               UInt16 count, bool update)
 {
     union ixgbe_adv_rx_desc *desc = ring->rxDescArray;
     ixgbeRxBufferInfo *bufInfo = ring->rxBufArray;
@@ -327,23 +327,12 @@ UInt16 IntelLucy::rxMapBuffers(struct ixgbeRxRing *ring, UInt16 index,
 next_batch:
         rdt = index + kRxMemDescMask;
         index = (index + kRxMemBatchSize) & kRxDescMask;
-        
-        /*
-         * Update descriptor ring after every batch.
-         */
-        if (updateType == kRingUpdImm) {
-            ring->rxMapNextIndex = index;
-            ring->rxCleanedCount--;
-
-            IXGBE_WRITE_REG(hw, IXGBE_RDT(ring->regIndex), rdt);
-        }
     }
     /*
      * Update descriptor ring after all batches have been mapped.
      */
-    if (updateType == kRingUpdLate) {
+    if (update) {
         ring->rxMapNextIndex = index;
-        ring->rxCleanedCount -= count;
         
         IXGBE_WRITE_REG(hw, IXGBE_RDT(ring->regIndex), rdt);
     }
@@ -368,10 +357,9 @@ void IntelLucy::rxWorkThread(UInt64 work)
     UInt16 count = (work >> 16);
     
     if (count) {
-        set_ring_mapping(ring);
-        rxMapBuffers(ring, index, count, kRingUpdNone);
-        clear_ring_mapping(ring);
+        rxMapBuffers(ring, index, count, false);
     }
+    clear_ring_mapping(ring);
 }
 
 UInt32 IntelLucy::rxCleanRingVTD(IONetworkInterface *interface, struct ixgbeRxRing *ring, uint32_t maxCount, IOMbufQueue *pollQueue, void *context)
@@ -529,21 +517,13 @@ handle_pkt:
     if (ring->rxCleanedCount) {
         SInt16 now = ring->rxCleanedCount;
         SInt16 defer = now - 11;
-        UInt16 update = kRingUpdImm;
         
-        if (defer > 0) {
+        if ((defer > 0) && !ring_is_mapping(ring))
             now -= defer;
-        }
-        if (ring_is_mapping(ring)) {
-            /*
-             * A delayed mapping is still in progress. Update the ring
-             * after the current mapping has been completed to give the
-             * delayed task more time to complete.
-             */
-            DebugLog("rxWorkThread() is still running.\n");
-            update = kRingUpdLate;
-        }
-        rxMapBuffers(ring, ring->rxMapNextIndex, now, update);
+        else
+            defer = 0;
+        
+        rxMapBuffers(ring, ring->rxMapNextIndex, now, true);
 
         /* Schedule some batches for delayed mapping, because there
          * is too much work to be done now.
@@ -551,15 +531,18 @@ handle_pkt:
         if (defer > 0) {
             UInt64 work = (ring->rxMapNextIndex | (defer << 16));
             
+            set_ring_mapping(ring);
             thread_call_enter1_delayed(callEntry, (thread_call_param_t) work, callDelay);
+            
             /*
              * Update the indices now in the hope, that the mapping
              * of the corresponding batches will complete until we'll
              * be polling again.
              */
-            ring->rxCleanedCount -= defer;
+            
             ring->rxMapNextIndex = ((ring->rxMapNextIndex + (defer * kRxMemBatchSize)) & kRxDescMask);
         }
+        ring->rxCleanedCount = 0;
     }
     if (ring_is_adaptive(ring)) {
         OSAddAtomic((SInt32)pktBytes, &ring->vector.totalBytes);
