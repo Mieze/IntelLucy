@@ -724,11 +724,10 @@ void IntelLucy::freeTxBufferInfo()
 
 bool IntelLucy::allocRxPool()
 {
-    IOPhysicalAddress64 pa = (IOPhysicalAddress64)NULL;
+    IOPhysicalAddress64 pa = 0;
     mbuf_t m;
     struct ixgbeRxBufferInfo *rm;
     struct ixgbeRxRing *ring;
-    void *va;
     UInt32 i, j;
     bool result = false;
         
@@ -757,16 +756,15 @@ bool IntelLucy::allocRxPool()
         ring = &rxRing[j];
 
         for (i = 0; i < kNumRxDesc; i++) {
-            m = rxPool->getPacket(rxBufferPktSize);
+            m = rxPool->getPacket(rxBufferPktSize, MBUF_WAITOK);
             
             if (!m) {
                 IOLog("Couldn't get receive buffer from pool.\n");
                 goto error_rx_pool;
             }
-            va = mbuf_datastart(m);
             
             if (!useAppleVTD) {
-                pa = mbuf_data_to_physical(va);
+                pa = mbuf_data_to_physical(mbuf_datastart(m));
             }
             
             /* We have to keep the physical address of the buffer too

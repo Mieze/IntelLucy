@@ -674,7 +674,7 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
         if (useAppleVTD)
             numSegs = txMapPacket(m, txSegments, kMaxSegs, &txRing[0]);
         else
-            numSegs = txMbufCursor->getPhysicalSegmentsWithCoalesce(m, &txSegments[0], kMaxSegs);
+            numSegs = txMbufCursor->getPhysicalSegmentsWithCoalesce(m, txSegments, kMaxSegs);
         
         numDescs += numSegs;
         

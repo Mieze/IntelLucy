@@ -25,7 +25,7 @@ public:
     static IntelLucyRxPool * withCapacity(UInt32 mbufCapacity,
                                           UInt32 clustCapacity);
 
-    virtual mbuf_t getPacket(UInt32 size);
+    virtual mbuf_t getPacket(UInt32 size, mbuf_how_t how);
 
     
     mbuf_t replaceOrCopyPacket(mbuf_t *mp,

@@ -137,7 +137,7 @@ IntelLucyRxPool::withCapacity(UInt32 mbufCapacity,
     return pool;
 }
 
-mbuf_t IntelLucyRxPool::getPacket(UInt32 size)
+mbuf_t IntelLucyRxPool::getPacket(UInt32 size, mbuf_how_t how)
 {
     mbuf_t m = NULL;
     void * data;
@@ -145,7 +145,7 @@ mbuf_t IntelLucyRxPool::getPacket(UInt32 size)
     unsigned int chunks = 1;
 
     if (size > maxCopySize) {
-        err = mbuf_allocpacket(MBUF_DONTWAIT, PAGE_SIZE, &chunks, &m);
+        err = mbuf_allocpacket(how, PAGE_SIZE, &chunks, &m);
         
         if (!err) {
             data = mbuf_datastart(m);
@@ -164,7 +164,7 @@ mbuf_t IntelLucyRxPool::getPacket(UInt32 size)
             }
         }
     } else {
-        err = mbuf_allocpacket(MBUF_DONTWAIT, maxCopySize, &chunks, &m);
+        err = mbuf_allocpacket(how, maxCopySize, &chunks, &m);
 
         if (!err) {
             data = mbuf_datastart(m);
@@ -252,7 +252,7 @@ mbuf_t IntelLucyRxPool::replaceOrCopyPacket(mbuf_t *mp,
         if (len > maxCopySize) {
             m = *mp;
             
-            if ((*mp = getPacket(len)) == NULL) {
+            if ((*mp = getPacket(len, MBUF_DONTWAIT)) == NULL) {
                 *mp = m;
                 m = NULL;
             }
@@ -262,7 +262,7 @@ mbuf_t IntelLucyRxPool::replaceOrCopyPacket(mbuf_t *mp,
              * Packet should be copied. Try to get
              * one from the mbuf buffer pool.
              */
-            m = getPacket(len);
+            m = getPacket(len, MBUF_DONTWAIT);
             
             if (m) {
                 mbuf_copy_pkthdr(m, *mp);
