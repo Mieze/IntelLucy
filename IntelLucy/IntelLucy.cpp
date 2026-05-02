@@ -576,12 +576,12 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
                 prepareTSO4(m, &iplen, &tcplen, &mss);
 
                 /* Adjust paylen for TSOv4. */
-                paylen -= (kMacHdrLen + iplen + tcplen);
+                paylen -= (ETH_HLEN + iplen + tcplen);
 
                 //DebugLog("Ethernet paylen: %u mss: %u iplen: %u tcplen: %u\n", paylen, mss, iplen, tcplen);
 
                 /* Prepare the context descriptor. */
-                vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | iplen);
+                vlanMacipLens = ((ETH_HLEN << IXGBE_ADVTXD_MACLEN_SHIFT) | iplen);
                 typeTucmdMlhl = (IXGBE_TXD_CMD_DEXT | IXGBE_ADVTXD_DTYP_CTXT |
                                  IXGBE_ADVTXD_TUCMD_L4T_TCP | IXGBE_ADVTXD_TUCMD_IPV4);
                 mssL4lenIdx = (((mss & 0x0000ffff) << IXGBE_ADVTXD_MSS_SHIFT) |
@@ -594,7 +594,7 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
             } else {
                 olInfoStatus = (IXGBE_ADVTXD_CC | IXGBE_ADVTXD_POPTS_TXSM);
 
-                if ((paylen - kMacHdrLen) > mtu) {
+                if ((paylen - ETH_HLEN) > mtu) {
                     /*
                      * Fix the pseudo header checksum, get the
                      * TCP header size and set paylen.
@@ -602,10 +602,10 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
                     prepareTSO6(m, &iplen, &tcplen, &mss);
 
                     /* Adjust paylen for TSOv6. */
-                    paylen -= (kMacHdrLen + iplen + tcplen);
+                    paylen -= (ETH_HLEN + iplen + tcplen);
 
                     /* Prepare the context descriptor. */
-                    vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | iplen);
+                    vlanMacipLens = ((ETH_HLEN << IXGBE_ADVTXD_MACLEN_SHIFT) | iplen);
                     typeTucmdMlhl = (IXGBE_TXD_CMD_DEXT | IXGBE_ADVTXD_DTYP_CTXT |
                                      IXGBE_ADVTXD_TUCMD_L4T_TCP | IXGBE_ADVTXD_TUCMD_IPV6);
                     mssL4lenIdx = (((mss & 0x0000ffff) << IXGBE_ADVTXD_MSS_SHIFT) |
@@ -620,7 +620,7 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
                      */
                     offloadFlags = kChecksumTCPIPv6;
                     
-                    vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv6HdrLen);
+                    vlanMacipLens = ((ETH_HLEN << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv6HdrLen);
                     typeTucmdMlhl = (IXGBE_TXD_CMD_DEXT | IXGBE_ADVTXD_DTYP_CTXT |
                                      IXGBE_ADVTXD_TUCMD_L4T_TCP | IXGBE_ADVTXD_TUCMD_IPV6);
 
@@ -638,27 +638,27 @@ IOReturn IntelLucy::outputStart(IONetworkInterface *interface, IOOptionBits opti
                 typeTucmdMlhl = (IXGBE_TXD_CMD_DEXT | IXGBE_ADVTXD_DTYP_CTXT);
 
                 if (offloadFlags & kChecksumTCP) {
-                    vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv4HdrLen);
+                    vlanMacipLens = ((ETH_HLEN << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv4HdrLen);
                     typeTucmdMlhl |= (IXGBE_ADVTXD_TUCMD_L4T_TCP | IXGBE_ADVTXD_TUCMD_IPV4);
        
                     olInfoStatus |= (IXGBE_ADVTXD_POPTS_TXSM | IXGBE_ADVTXD_POPTS_IXSM);
                 } else if (offloadFlags & kChecksumTCPIPv6) {
-                    vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv6HdrLen);
+                    vlanMacipLens = ((ETH_HLEN << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv6HdrLen);
                     typeTucmdMlhl |= (IXGBE_ADVTXD_TUCMD_L4T_TCP | IXGBE_ADVTXD_TUCMD_IPV6);
 
                     olInfoStatus |= IXGBE_ADVTXD_POPTS_TXSM;
                 } else if (offloadFlags & kChecksumUDP) {
-                    vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv4HdrLen);
+                    vlanMacipLens = ((ETH_HLEN << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv4HdrLen);
                     typeTucmdMlhl |= (IXGBE_ADVTXD_TUCMD_L4T_UDP | IXGBE_ADVTXD_TUCMD_IPV4);
 
                     olInfoStatus |= (IXGBE_ADVTXD_POPTS_TXSM | IXGBE_ADVTXD_POPTS_IXSM);
                 } else if (offloadFlags & kChecksumUDPIPv6) {
-                    vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv6HdrLen);
+                    vlanMacipLens = ((ETH_HLEN << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv6HdrLen);
                     typeTucmdMlhl |= (IXGBE_ADVTXD_TUCMD_L4T_UDP | IXGBE_ADVTXD_TUCMD_IPV6);
 
                     olInfoStatus |= IXGBE_ADVTXD_POPTS_TXSM;
                 } else if (offloadFlags & kChecksumIP) {
-                    vlanMacipLens = ((kMacHdrLen << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv4HdrLen);
+                    vlanMacipLens = ((ETH_HLEN << IXGBE_ADVTXD_MACLEN_SHIFT) | kIPv4HdrLen);
                     typeTucmdMlhl |= IXGBE_ADVTXD_TUCMD_IPV4;
                     
                     olInfoStatus |= IXGBE_ADVTXD_POPTS_IXSM;
@@ -1591,7 +1591,7 @@ void IntelLucy::timerAction(IOTimerEventSource *timer)
 
         ixgbeServiceTask();
     }
-#ifdef DEBUG
+#ifdef DEBUG_STAT
     if (test_bit(__LINK_UP, &stateFlags)) {
         IOLog("Stats for en%u: maxBytes: %d, maxPackets: %d\n", netif->getUnitNumber(), (int)txRing[0].vector.maxBytes, (int)txRing[0].vector.maxPackets);
     }
@@ -1630,58 +1630,98 @@ done:
 
 #pragma mark --- miscellaneous functions ---
 
+/*
+ * prepareTSO4() assumes, that at least the L3 and L4 headers are
+ * contigous.
+ */
 static inline void prepareTSO4(mbuf_t m, UInt32 *ipLength, UInt32 *tcpLength, UInt32 *mss)
 {
-    UInt8 *p = (UInt8 *)mbuf_data(m) + kMacHdrLen;
-    struct ip4_hdr_be *ip = (struct ip4_hdr_be *)p;
-    struct tcp_hdr_be *tcp;
+    UInt16 *addr;
+    UInt8 *p;
+    int l = (int)mbuf_len(m);
     UInt32 csum32 = 6;
     UInt32 max;
-    UInt32 i, il, tl;
     
-    for (i = 0; i < 4; i++) {
-        csum32 += ntohs(ip->addr[i]);
+    //DebugLog("First segment length: %u\n", l);
+
+    /*
+     * VLAN packets have the L3 and L4 headers in the second mbuf.
+     * The first one carries only the L2 header.
+     */
+    if (l == ETH_HLEN)
+        p = (UInt8 *)mbuf_data(mbuf_next(m));
+    else
+        p = (UInt8 *)((UInt8 *)mbuf_data(m) + ETH_HLEN);
+
+    /* Get the IPv4 header length. */
+    *ipLength = ((*p & 0x0f) << 2);
+    //DebugLog("IPv4 header length: %u\n", *ipLength);
+
+    /* Calculate the pseudo header checksum. */
+    addr = (UInt16 *)(p + __offsetof(struct ip , ip_src));
+    
+    for (l = 0; l < 4; l++) {
+        csum32 += ntohs(*addr++);
         csum32 += (csum32 >> 16);
         csum32 &= 0xffff;
     }
-    il = ((ip->hdr_len & 0x0f) << 2);
-    
-    tcp = (struct tcp_hdr_be *)(p + il);
-    tl = ((tcp->dat_off & 0xf0) >> 2);
-    max = ETH_DATA_LEN - (il + tl);
-
     /* Fill in the pseudo header checksum for TSOv4. */
-    tcp->csum = htons((UInt16)csum32);
+    p += *ipLength;
+    addr = (UInt16 *)(p + __offsetof(struct tcphdr , th_sum));
+    *addr = htons((UInt16)csum32);
 
-    *ipLength = il;
-    *tcpLength = tl;
+    /* Get the TCP header length. */
+    p += 12;
+    *tcpLength = ((*p & 0xf0) >> 2);
+    max = ETH_DATA_LEN - (*ipLength + *tcpLength);
+    //DebugLog("TCP header length: %u\n", *tcpLength);
 
     if (*mss > max)
         *mss = max;
 }
 
+/*
+ * prepareTSO6() assumes, that at least the L3 and L4 headers are
+ * contigous.
+ */
 static void prepareTSO6(mbuf_t m, UInt32 *ipLength, UInt32 *tcpLength, UInt32 *mss)
 {
-    UInt8 *p = (UInt8 *)mbuf_data(m) + kMacHdrLen;
-    struct ip6_hdr_be *ip6 = (struct ip6_hdr_be *)p;
-    struct tcp_hdr_be *tcp;
+    struct ip6_hdr *ip6hdr;
+    UInt16 *addr;
+    UInt8 *p;
+    int l = (int)mbuf_len(m);
     UInt32 csum32 = 6;
-    UInt32 i, tl;
     
-    ip6->pay_len = 0;
+    //DebugLog("First segment length: %u\n", l);
 
-    for (i = 0; i < 16; i++) {
-        csum32 += ntohs(ip6->addr[i]);
+    /*
+     * VLAN packets have the L3 and L4 headers in the second mbuf.
+     * The first one carries only the L2 header.
+     */
+    if (l == ETH_HLEN)
+        p = (UInt8 *)mbuf_data(mbuf_next(m));
+    else
+        p = (UInt8 *)((UInt8 *)mbuf_data(m) + ETH_HLEN);
+
+    *ipLength = kIPv6HdrLen;
+    //DebugLog("IPv6 header length: %u\n", *ipLength);
+
+    ip6hdr = (struct ip6_hdr *)p;
+    ip6hdr->ip6_ctlun.ip6_un1.ip6_un1_plen = 0;
+    addr = (UInt16 *)(p + __offsetof(struct ip6_hdr , ip6_src));
+    
+    for (l = 0; l < 16; l++) {
+        csum32 += ntohs(*addr++);
         csum32 += (csum32 >> 16);
         csum32 &= 0xffff;
     }
-    /* Get the length of the TCP header. */
-    tcp = (struct tcp_hdr_be *)(p + kIPv6HdrLen);
-    tl = ((tcp->dat_off & 0xf0) >> 2);
-
     /* Fill in the pseudo header checksum for TSOv6. */
-    tcp->csum = htons((UInt16)csum32);
+    p += kIPv6HdrLen;
+    addr = (UInt16 *)(p + __offsetof(struct tcphdr , th_sum));
+    *addr = htons((UInt16)csum32);
 
-    *ipLength = kIPv6HdrLen;
-    *tcpLength = tl;
+    /* Get the TCP header length. */
+    p += 12;
+    *tcpLength = ((*p & 0xf0) >> 2);
+    //DebugLog("TCP header length: %u\n", *tcpLength);
 }

@@ -181,9 +181,8 @@ enum {
 
 #define kJumboTresh 4076
 
-#define kMacHdrLen      14
-#define kIPv4HdrLen     20
-#define kIPv6HdrLen     40
+#define kIPv4HdrLen     sizeof(struct ip)
+#define kIPv6HdrLen     sizeof(struct ip6_hdr)
 
 /* Additional bittime to account for IXGBE framing */
 #define IXGBE_ETH_FRAMING 20

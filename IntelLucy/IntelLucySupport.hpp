@@ -40,38 +40,6 @@ struct ixgbeQueueVector {
 #endif
 };
 
-struct ip4_hdr_be {
-    UInt8 hdr_len;
-    UInt8 tos;
-    UInt16 tot_len;
-    UInt16 id;
-    UInt16 frg_off;
-    UInt8 ttl;
-    UInt8 prot;
-    UInt16 csum;
-    UInt16 addr[4];
-};
-
-struct ip6_hdr_be {
-    UInt32 vtc_fl;
-    UInt16 pay_len;
-    UInt8 nxt_hdr;
-    UInt8 hop_l;
-    UInt16 addr[16];
-};
-
-struct tcp_hdr_be {
-    UInt16 src_prt;
-    UInt16 dst_prt;
-    UInt32 seq_num;
-    UInt32 ack_num;
-    UInt8 dat_off;
-    UInt8 flags;
-    UInt16 wnd;
-    UInt16 csum;
-    UInt16 uptr;
-};
-
 #define IXGBE_MAX_RX_DESC_POLL 10
 
 void ixgbe_remove_adapter(struct ixgbe_hw *hw);
